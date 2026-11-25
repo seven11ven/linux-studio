@@ -26,3 +26,10 @@
 
   These are explained here, not silenced. The Debian files are left unmodified.
 - **Still pending:** AppArmor behaviour on a real Ubuntu 24.04 kernel can only be tested on the PM's machine (`linux-studio --self-test`).
+
+## Real-machine test (PM, Ubuntu 24.04, 22:06 UTC)
+- Downloaded through a temporary private port (auto-closed after one complete download), installed with `apt`, then ran `linux-studio --self-test`.
+- **Result: 7 passed, 0 failed.** The sandbox works under Ubuntu's AppArmor restriction with the Linux Studio profile: fake name and user, home hidden,
+  loopback only, no direct internet, proxy bridge running.
+- **INFO:** inner sandboxes aren't allowed, as expected under the restricted design. The editor's Chromium inner sandbox and the Rust installer's nested sandbox are off; the main sandbox still isolates everything.
+- **Still to confirm:** the editor window opens from the app menu.

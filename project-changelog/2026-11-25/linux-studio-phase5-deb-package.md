@@ -58,3 +58,9 @@
 - **desktop-file-validate:** no errors. One hint fixed in the source (removed the `TextEditor` category). It takes effect in the next build.
 - **lintian on revision 3:** 0 errors, 40 warnings, all in Debian's own runtime files. Each is explained in the build log; none are silenced.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 22:06 UTC: real Ubuntu 24.04 test passed
+- The PM installed revision 3 on Ubuntu 24.04. `linux-studio --self-test`: **7/7 passed**; the inner sandboxes are off as designed (AppArmor restricted model confirmed working).
+- **Delivery:** a temporary Python download page on private port 8765, which auto-closed after one complete download (scratchpad tool, not in the repo).
+- **Next:** confirm the editor opens from the menu.
+- **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager
