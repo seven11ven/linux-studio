@@ -51,3 +51,10 @@
 
 ## Impacts
 - First installable Linux Studio package. No secrets or environment variables introduced. The `.deb` files are not committed (ignored).
+
+## Update 19:54 UTC: lintian and desktop-file-validate
+
+- The PM installed `lintian` and `desktop-file-utils`.
+- **desktop-file-validate:** no errors. One hint fixed in the source (removed the `TextEditor` category). It takes effect in the next build.
+- **lintian on revision 3:** 0 errors, 40 warnings, all in Debian's own runtime files. Each is explained in the build log; none are silenced.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

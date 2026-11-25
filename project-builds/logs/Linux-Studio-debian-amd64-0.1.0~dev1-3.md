@@ -18,5 +18,11 @@
   - Remove: the bwrap copy is deleted, nothing is left in `/opt`, and user data survives.
   - Purge: the profile and `/opt/linux-studio` are gone, and user data survives.
 - **Folder permissions:** every folder is 0755 except the runtime `tmp` folders (1777).
-- **Not yet run:** `lintian` and `desktop-file-validate` (the PM needs to install them). AppArmor behaviour on a real Ubuntu 24.04 kernel can only be
-  tested on the PM's machine (`linux-studio --self-test`).
+- **desktop-file-validate:** passes with no errors. One hint: `TextEditor` is usually paired with `Utility`. Fixed in the source (`Categories=Development;IDE;`) for the next build.
+- **lintian:** **0 errors, 40 warnings.** Every warning is in Debian's own files inside the private runtime (`opt/linux-studio/runtime/`), not in Linux Studio's packaging:
+  - `unusual-interpreter python` ×22: doc and example scripts and pip's vendored files with `#!/usr/bin/python`. They're never run on the host.
+  - `uses-dpkg-database-directly` ×16: dpkg and debconf internals in the read-only runtime. Never run.
+  - `systemd-service-file-refers-to-unusual-wantedby-target` ×2: Debian getty units. There's no systemd in the sandbox.
+
+  These are explained here, not silenced. The Debian files are left unmodified.
+- **Still pending:** AppArmor behaviour on a real Ubuntu 24.04 kernel can only be tested on the PM's machine (`linux-studio --self-test`).
