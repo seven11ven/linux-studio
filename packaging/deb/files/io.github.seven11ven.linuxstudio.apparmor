@@ -1,0 +1,48 @@
+# Linux Studio: lets ONLY Linux Studio's own copy of bubblewrap create its sandbox on Ubuntu 23.10+, which
+# blocks unprivileged user namespaces by default. Modelled exactly on Ubuntu's own design
+# (apparmor-profiles: /usr/share/apparmor/extra-profiles/bwrap-userns-restrict):
+#   * linux-studio-bwrap: the bwrap copy may set up namespaces and mounts.
+#   * Everything bwrap starts runs stacked with linux-studio-unpriv, which DENIES ALL CAPABILITIES, so nothing
+#     inside (or anyone misusing this bwrap copy) gains the kernel powers Ubuntu's restriction protects.
+# The system /usr/bin/bwrap and every other program are unaffected. Installed by the linux-studio package.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile linux-studio-bwrap /opt/linux-studio/libexec/bwrap flags=(attach_disconnected) {
+  allow capability,
+  allow file rwlkm /{**,},
+  allow network,
+  allow unix,
+  allow ptrace,
+  allow signal,
+  allow mqueue,
+  allow io_uring,
+  allow userns,
+  allow mount,
+  allow umount,
+  allow pivot_root,
+  allow dbus,
+  allow px /** -> linux-studio-bwrap//&linux-studio-unpriv,
+
+  include if exists <local/linux-studio-bwrap>
+}
+
+profile linux-studio-unpriv flags=(attach_disconnected) {
+  allow file rwlkm /{**,},
+  allow network,
+  allow unix,
+  allow ptrace,
+  allow signal,
+  allow mqueue,
+  allow io_uring,
+  allow userns,
+  allow mount,
+  allow umount,
+  allow pivot_root,
+  allow dbus,
+  allow pix /** -> &linux-studio-unpriv,
+
+  audit deny capability,
+
+  include if exists <local/linux-studio-unpriv>
+}

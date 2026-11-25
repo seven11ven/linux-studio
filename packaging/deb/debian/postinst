@@ -1,0 +1,42 @@
+#!/bin/sh
+# Linux Studio post-install. No network, no prompts, safe to run more than once.
+set -e
+
+PROFILE=/etc/apparmor.d/io.github.seven11ven.linuxstudio
+COPY=/opt/linux-studio/libexec/bwrap
+
+copy_bwrap() {
+    # Linux Studio uses its own copy of Ubuntu's bwrap so the AppArmor profile applies to it alone.
+    if [ ! -x /usr/bin/bwrap ]; then
+        echo "linux-studio: /usr/bin/bwrap is missing. Reinstall the 'bubblewrap' package, then run: sudo dpkg-reconfigure linux-studio" >&2
+        return 0
+    fi
+    install -m 0755 -o root -g root /usr/bin/bwrap "$COPY.new"
+    mv -f "$COPY.new" "$COPY"
+}
+
+load_profile() {
+    # Respect an administrator who disabled the profile (same check as Ubuntu's dh_apparmor).
+    if [ -e "/etc/apparmor.d/disable/io.github.seven11ven.linuxstudio" ]; then
+        return 0
+    fi
+    if command -v apparmor_parser >/dev/null 2>&1 && [ -d /sys/kernel/security/apparmor ]; then
+        apparmor_parser -r -T -W "$PROFILE" || echo "linux-studio: warning: could not load the AppArmor profile; run 'linux-studio --self-test' after a reboot." >&2
+    fi
+}
+
+case "$1" in
+    configure|triggered|abort-remove|abort-deconfigure)
+        # abort-*: a failed removal already ran prerm, so put the bwrap copy and profile back.
+        copy_bwrap
+        load_profile
+        ;;
+    abort-upgrade)
+        ;;
+    *)
+        echo "postinst called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

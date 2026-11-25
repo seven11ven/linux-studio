@@ -1,0 +1,16 @@
+#!/bin/sh
+# Linux Studio post-removal. Nothing in users' home folders is ever deleted, not even on purge
+# (~/.config/linux-studio and ~/.local/share/linux-studio stay until the user removes them).
+set -e
+
+case "$1" in
+    remove|purge|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        # dpkg removes the package's own files and, on purge, the AppArmor profile (a conffile).
+        ;;
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

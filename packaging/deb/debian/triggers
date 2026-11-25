@@ -1,0 +1,2 @@
+# Re-copy bwrap whenever Ubuntu updates bubblewrap, so security fixes reach Linux Studio's copy too.
+interest-noawait /usr/bin/bwrap

@@ -16,6 +16,7 @@
 #   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
 #   linux-studio --set-project-folder P   choose the project folder
 #   linux-studio --shell [-c COMMAND]     open a terminal in the same sandbox (testing/debugging)
+#   linux-studio --self-test              check that the sandbox works on this computer
 #   linux-studio --gpu                    allow the graphics card (off by default for privacy)
 #   linux-studio --allow-x11              allow running on an X11 desktop (less safe than Wayland; see the message)
 #   linux-studio --editor-dir D --runtime-dir D   use a development build instead of /opt/linux-studio
@@ -105,6 +106,7 @@ while (( $# )); do
     --network) exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" ;;
     --toolchains) MODE=toolchains-ui ;;
     --toolchains-worker) MODE=toolchains-worker ;;   # internal: started by the Toolchains explorer
+    --self-test) MODE=selftest ;;
     --shell) MODE=shell; shift; SHELL_CMD=("$@"); break ;;
     --gpu) GPU=1 ;;
     --allow-x11) ALLOW_X11=1 ;;
@@ -116,7 +118,14 @@ while (( $# )); do
   shift
 done
 
-command -v bwrap >/dev/null || die "bubblewrap (bwrap) is not installed"
+# Installed package: Linux Studio's own copy of the system bwrap, which is the only program the Linux Studio
+# AppArmor profile allows to create sandboxes (Ubuntu 24.04+). Development: the system bwrap.
+BWRAP=/opt/linux-studio/libexec/bwrap
+if [[ ! -x "$BWRAP" ]]; then
+  if [[ "$SELF" == /opt/linux-studio/* ]]; then BWRAP=/usr/bin/bwrap   # installed: never search PATH (review #5)
+  else BWRAP="$(command -v bwrap || true)"; fi
+fi
+[[ -n "$BWRAP" ]] || die "bubblewrap (bwrap) is not installed"
 if [[ $MODE == toolchains-ui ]]; then
   WORKER_CMD=("$SELF" --runtime-dir "$RUNTIME_DIR" --toolchains-worker)
   exec /usr/bin/python3 "$TOOLCHAINS_SRC/explorer.py" -- "${WORKER_CMD[@]}"
@@ -126,7 +135,30 @@ if [[ $MODE == editor ]]; then
   [[ -x "$EDITOR_DIR/linux-studio-editor" ]] || die "editor not found at $EDITOR_DIR (use --editor-dir)"
 fi
 
-if [[ $MODE != toolchains-worker ]]; then
+if [[ $MODE == selftest ]]; then
+  # A throwaway project folder; the checks never touch your real one.
+  SELFTEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linux-studio-selftest.XXXXXXXX")"
+  trap 'rm -rf -- "$SELFTEST_DIR"' EXIT INT TERM   # replaced by the full cleanup below (review #6)
+  PROJECT_FOLDER="$SELFTEST_DIR"
+  MODE=shell
+  SHELL_CMD=(-c '
+    ok=0; bad=0
+    t() { if eval "$2" >/dev/null 2>&1; then echo "PASS  $1"; ok=$((ok+1)); else echo "FAIL  $1"; bad=$((bad+1)); fi; }
+    t "Sandbox started"                          true
+    t "Fake computer name (studio)"              "[ \"\$(hostname)\" = studio ]"
+    t "Fake user name (user)"                    "[ \"\$(whoami)\" = user ]"
+    t "Your home folder is hidden"               "[ \"\$(ls -A /home)\" = user ]"
+    t "No network devices except loopback"       "[ \"\$(ip -o link | wc -l)\" = 1 ]"
+    t "No direct internet"                       "! curl --noproxy \"*\" -s -m 5 https://example.com"
+    t "Proxy bridge is running"                  "exec 3<>/dev/tcp/127.0.0.1/3128"
+    if /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1; then
+      echo "INFO  Inner sandboxes available (editor web-content sandbox and Rust installer sandbox are on)"
+    else
+      echo "INFO  Inner sandboxes not allowed here (normal on Ubuntu 24.04+): editor web-content and Rust installer"
+      echo "      sandboxes are off; Linux Studio'"'"'s main sandbox still isolates everything"
+    fi
+    echo; echo "$ok passed, $bad failed"; [ $bad = 0 ]')
+elif [[ $MODE != toolchains-worker ]]; then
   load_project_folder || { first_run; load_project_folder || die "no project folder set"; }
 fi
 mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOME" "$TOOLCHAINS_DIR"
@@ -137,6 +169,7 @@ PROXY_PID=""
 cleanup() {
   if [[ -n "$PROXY_PID" ]]; then kill "$PROXY_PID" 2>/dev/null || true; wait "$PROXY_PID" 2>/dev/null || true; fi
   rm -rf -- "$RUNTIME_TMP"
+  [[ -z "${SELFTEST_DIR:-}" ]] || rm -rf -- "$SELFTEST_DIR"
 }
 trap cleanup EXIT INT TERM
 printf 'root:x:0:0::/root:/usr/sbin/nologin\nuser:x:1000:1000:user:/home/user:/bin/bash\nnobody:x:65534:65534::/nonexistent:/usr/sbin/nologin\n' > "$RUNTIME_TMP/passwd"
@@ -234,7 +267,11 @@ fi
 
 # Inside the sandbox: start the proxy bridge (127.0.0.1:3128 -> proxy socket), then the real program.
 START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
-  if [ -e /run/linux-studio/apply_settings.py ]; then /usr/bin/python3 /run/linux-studio/apply_settings.py || exit 1; fi
+  if [ -e /run/linux-studio/apply_settings.py ]; then /usr/bin/python3 /run/linux-studio/apply_settings.py || exit 1
+    # Under Ubuntu'"'"'s restricted AppArmor design nothing inside may use kernel capabilities, so Chromium'"'"'s own
+    # inner sandbox cannot start; Linux Studio'"'"'s main sandbox still isolates the editor (PM decision).
+    /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 || set -- "$@" --no-sandbox
+  fi
   mkdir -p "$HOME/.config/go/telemetry" && printf "off\n" > "$HOME/.config/go/telemetry/mode"   # Go telemetry off
   for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
   [ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
@@ -246,15 +283,15 @@ if [[ $MODE == toolchains-worker ]]; then
   # The worker gets a fixed PATH and never the installed toolchains first (security review #1).
   WORKER_START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
   export PATH=/usr/bin:/bin; exec "$@"' linux-studio)
-  bwrap "${ARGS[@]}" "${WORKER_START[@]}" /usr/bin/python3 /run/linux-studio/worker.py
+  "$BWRAP" "${ARGS[@]}" "${WORKER_START[@]}" /usr/bin/python3 /run/linux-studio/worker.py
 elif [[ $MODE == shell ]]; then
   if (( ${#SHELL_CMD[@]} )); then
-    bwrap "${ARGS[@]}" "${START[@]}" /bin/bash "${SHELL_CMD[@]}"
+    "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash "${SHELL_CMD[@]}"
   else
-    bwrap "${ARGS[@]}" "${START[@]}" /bin/bash -i
+    "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash -i
   fi
 else
-  bwrap "${ARGS[@]}" "${START[@]}" /app/linux-studio-editor "${EDITOR_FLAGS[@]}" \
+  "$BWRAP" "${ARGS[@]}" "${START[@]}" /app/linux-studio-editor "${EDITOR_FLAGS[@]}" \
     --user-data-dir /home/user/.config/linux-studio \
     --extensions-dir /home/user/.linux-studio/extensions \
     /project-folder

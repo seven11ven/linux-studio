@@ -1,0 +1,11 @@
+# Linux Studio: lets ONLY Linux Studio's own copy of bubblewrap create the sandbox (user namespaces) on
+# Ubuntu 23.10+, which blocks this by default. The system /usr/bin/bwrap and every other program are unaffected.
+# Same pattern Ubuntu uses for programs like Chrome and VS Code. Installed by the linux-studio package.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile linux-studio-bwrap /opt/linux-studio/libexec/bwrap flags=(unconfined) {
+  userns,
+
+  include if exists <local/linux-studio-bwrap>
+}

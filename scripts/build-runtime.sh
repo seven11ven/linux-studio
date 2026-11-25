@@ -42,7 +42,7 @@ IFS=,; INCLUDE="${PACKAGES[*]}"; unset IFS
 mmdebstrap --mode=unshare --variant=minbase --include="$INCLUDE" --keyring="$KEYRING" \
   --customize-hook="copy-in '$ROOT/src/runtime/overlay/etc/linux-studio' /etc" \
   --customize-hook='echo ". /etc/linux-studio/bashrc" >> "$1/etc/bash.bashrc"' \
-  --customize-hook=': > "$1/etc/machine-id"; : > "$1/etc/hostname"' \
+  --customize-hook=': > "$1/etc/machine-id"; : > "$1/etc/hostname"; rm -f "$1"/etc/*-' \
   --customize-hook='mkdir -p "$1/home/user" "$1/project-folder" "$1/app" "$1/run/user" "$1/toolchains"' \
   --customize-hook='chroot "$1" dpkg-query -W -f="\${Package} \${Version}\n" > "$1/etc/linux-studio/manifest.txt"' \
   --customize-hook='rm -rf "$1"/var/cache/apt/archives/*.deb "$1"/var/lib/apt/lists/*' \

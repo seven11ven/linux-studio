@@ -1,0 +1,22 @@
+#!/bin/sh
+# Linux Studio pre-removal. Cleans up only on real removal, never on upgrade. User data is never touched.
+set -e
+
+COPY=/opt/linux-studio/libexec/bwrap
+
+case "$1" in
+    remove|deconfigure)
+        if command -v apparmor_parser >/dev/null 2>&1 && [ -d /sys/kernel/security/apparmor ]; then
+            apparmor_parser -R /etc/apparmor.d/io.github.seven11ven.linuxstudio 2>/dev/null || true
+        fi
+        rm -f "$COPY" "$COPY.new"
+        ;;
+    upgrade|failed-upgrade)
+        ;;
+    *)
+        echo "prerm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

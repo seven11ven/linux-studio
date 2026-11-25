@@ -415,9 +415,15 @@ def install(tool, version):
             nested = ["/usr/bin/bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
                       "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
                       "--tmpfs", "/run", "--tmpfs", ROOT, "--bind", work, work, "--chdir", top]
-            r = subprocess.run(nested + ["/bin/sh", os.path.join(top, "install.sh"), f"--prefix={prefix}",
-                                         "--disable-ldconfig", "--without=rust-docs"],
-                               capture_output=True, text=True, timeout=1800, env=CLEAN_ENV)
+            cmd = ["/bin/sh", os.path.join(top, "install.sh"), f"--prefix={prefix}", "--disable-ldconfig",
+                   "--without=rust-docs"]
+            probe = subprocess.run(["/usr/bin/bwrap", "--unshare-all", "--ro-bind", "/", "/", "--proc", "/proc",
+                                    "--dev", "/dev", "true"], capture_output=True, timeout=30, env=CLEAN_ENV)
+            if probe.returncode == 0:
+                cmd = nested + cmd
+            # else: inner sandboxes aren't allowed (Ubuntu 24.04+ restricted AppArmor design, PM decision);
+            # the installer still only runs after Rust's checksum and signature checks passed.
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, env=CLEAN_ENV, cwd=top)
             if r.returncode != 0:
                 raise Fail("Rust's installer failed, so nothing was installed.")
             top = prefix

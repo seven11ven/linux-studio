@@ -27,9 +27,14 @@ Status key: ✅ built and tested · 🚧 in progress · 📋 planned
 | Toolchains explorer | ✅ | `linux-studio --toolchains`: install extra Python, Node.js, Go, Rust, Java and CMake versions from official publishers. SHA-256 is always checked, and publisher signatures where published. It's online only while open, and limited to official sites. Choose versions with Use this version, and uninstall with Remove. |
 | Read-only toolchains | ✅ | Inside the editor, installed toolchains can't be changed by project code. |
 | Go telemetry off | ✅ | Go's telemetry is switched off, and Go can't download other Go versions by itself. |
-| Linux packages | 📋 | Installable packages for Linux distributions (Phase 5). |
+| .deb package (dev build) | 🚧 | `linux-studio_0.1.0~dev1-3_amd64.deb` for Ubuntu 24.04+. Passed a clean-install, upgrade, remove and purge test. Awaiting the lintian check and a test on the PM's machine. |
+| Self-test | ✅ | `linux-studio --self-test` checks the sandbox on your computer and explains anything that's off. |
+| Ubuntu-safe sandbox permission | ✅ | Follows Ubuntu's own restricted AppArmor design: only Linux Studio's bwrap copy may sandbox, and nothing inside gets kernel capabilities. |
 
 **Known limits**
+- On Ubuntu 24.04+, the editor's inner Chromium sandbox and the nested Rust-installer sandbox are off (Ubuntu's AppArmor rules). The main Linux Studio sandbox still isolates everything.
+- The dev build uses a placeholder icon.
+- The project has no licence chosen yet.
 - Go and python-build-standalone publish checksums only, with no signature. Their HTTPS downloads protect the transfer, but not against a compromised publisher.
 - Websites you approve can see your public IP address.
 - Some unused Copilot code remains inside the editor's core files. It's switched off and can't reach any address.

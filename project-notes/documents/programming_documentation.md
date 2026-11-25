@@ -291,6 +291,42 @@ The bundled mini-Linux now includes `gpgv` (signature checking), `xz-utils` and 
 - `src/editor/initial-settings.json` makes the editor follow your desktop's light or dark setting. Pick another theme any time; your choice is kept.
 - The build recipe copies the themes into the finished app and checks that they contain no code.
 
+## Installing Linux Studio: the .deb package (Phase 5)
+
+**Build it:** `scripts/build-deb.sh --type dev --version 0.1.0~dev1 --revision N`. The result goes in
+`project-builds/dev-builds/Linux-Studio-debian-amd64-<version>/`, with a summary in `project-builds/logs/`. Old builds are never overwritten;
+change the revision number for each new build.
+
+**What gets installed:**
+- `/opt/linux-studio/editor` is the editor, and `/opt/linux-studio/runtime` is the private mini-Linux.
+- `/opt/linux-studio/share` holds Linux Studio's own scripts and windows.
+- `/usr/bin/linux-studio` is the command, and the menu entry includes **Approved websites** and **Toolchains** shortcuts.
+
+**Why there's an AppArmor file (Ubuntu 24.04+):** Ubuntu blocks programs from creating sandboxes by default, because that ability has been
+used in kernel attacks. Linux Studio follows Ubuntu's own recommended design (`bwrap-userns-restrict`):
+- At install time, a **copy of Ubuntu's bwrap** is placed at `/opt/linux-studio/libexec/bwrap`. It's re-copied automatically whenever Ubuntu updates bubblewrap.
+- The profile `/etc/apparmor.d/io.github.seven11ven.linuxstudio` lets **only that copy** build sandboxes. Everything it starts runs with
+  **all kernel capabilities denied**, so neither Linux Studio nor anyone misusing the copy gains the powers Ubuntu's restriction protects.
+- Because of that, two inner sandboxes can't start on Ubuntu 24.04+, and Linux Studio switches them off automatically (PM decision):
+  the editor's Chromium web-content sandbox, and the nested sandbox for Rust's installer. Linux Studio's main sandbox still isolates everything,
+  and Rust downloads are still checksum- and signature-checked.
+
+**Check it works on your computer:** `linux-studio --self-test`.
+
+**Removing:** `sudo apt remove linux-studio` deletes the program. Your settings and projects (`~/.config/linux-studio`, `~/.local/share/linux-studio`,
+and your project folder) are **never** deleted, not even by `apt purge`.
+
+**Security review (jake-lockley), Phase 5:**
+- **Medium-High, fixed (PM chose Ubuntu's restricted design):** the first profile let any program use the bwrap copy to get around Ubuntu's protection.
+- **Low, fixed:**
+  - a failed removal now restores the bwrap copy
+  - an administrator's choice to disable the profile is respected
+  - there's a clear message if bwrap is missing
+  - an installed Linux Studio never searches PATH for bwrap
+  - self-test cleanup
+  - a wider secret scan in the build
+  - the runtime `/tmp` stays sticky
+
 ## Phase 1 research results (2026-11-25)
 
 Rules checked: free with no card needed, no hidden tracking, and secure (see `guidelines/Implementation.md` and `guidelines/Security.md`).
