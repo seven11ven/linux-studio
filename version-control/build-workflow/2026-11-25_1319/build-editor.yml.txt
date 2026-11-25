@@ -1,0 +1,120 @@
+# Builds the Linux Studio editor: Microsoft's open-source "Code - OSS" (Linux x64)
+# from a chosen, security-fixed VS Code release, with Linux Studio's product overrides.
+# Why: VSCodium's patches only fit VS Code 1.143.1, which lacks the CVE-2026-120779 fix.
+# Plain-language explanation: project-notes/documents/programming_documentation.md
+#
+# Security notes:
+# - Runs only when started by hand (workflow_dispatch).
+# - Token is read-only (contents: read); no repository secrets are used.
+# - Every action is pinned to an exact commit hash; the VS Code tag is checked against its commit.
+# - Nothing is published; the result is a workflow artifact kept for 7 days.
+
+name: Build Linux Studio editor
+
+on:
+  workflow_dispatch:
+    inputs:
+      vscode_tag:
+        description: "VS Code release tag (e.g. 1.148.0)"
+        required: true
+        default: "1.148.0"
+      vscode_commit:
+        description: "Full commit hash of that tag (checked against GitHub before building)"
+        required: true
+        default: "661626d0e72f97806550790a98fb87116c9db825"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04   # oldest supported Ubuntu runner, so the binary works on older glibc
+    timeout-minutes: 300
+    steps:
+      - name: Check inputs
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: |
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Bad tag format: $TAG"; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Bad commit format"; exit 1; }
+          REAL=$(git ls-remote https://github.com/microsoft/vscode "refs/tags/$TAG" | cut -f1)
+          [[ "$REAL" == "$COMMIT" ]] || { echo "Tag $TAG points to $REAL, not $COMMIT"; exit 1; }
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Checkout Linux Studio (for product overrides)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: studio
+          persist-credentials: false
+
+      - name: Checkout VS Code source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: microsoft/vscode
+          ref: ${{ inputs.vscode_commit }}
+          path: vscode
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: vscode/.nvmrc
+
+      - name: Install build dependencies
+        working-directory: vscode
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential g++ libx11-dev libxkbfile-dev libsecret-1-dev libkrb5-dev fakeroot python3
+          PNPM_VERSION=$(jq -r '.packageManager' package.json | sed -E 's/^pnpm@//; s/\+.*$//')
+          [[ "$PNPM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected packageManager value"; exit 1; }
+          npm install -g "pnpm@$PNPM_VERSION"
+          pnpm --version
+
+      - name: Apply Linux Studio product overrides
+        working-directory: vscode
+        run: |
+          jq --slurpfile o ../studio/src/editor/product-overrides.json \
+            '. * ($o[0] | del(.__remove)) | delpaths($o[0].__remove | map([.]))' product.json > product.json.new
+          mv product.json.new product.json
+          jq '{nameShort, applicationName, extensionsGallery, voiceWsUrl, defaultChatAgent}' product.json
+
+      - name: Remove built-in Copilot extension
+        working-directory: vscode
+        run: rm -rf extensions/copilot
+
+      - name: Install packages
+        working-directory: vscode
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: vscode
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm run gulp vscode-linux-x64-min
+
+      - name: Archive and checksum
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: |
+          mkdir -p out
+          NAME="linux-studio-editor-${TAG}-linux-x64.tar.gz"
+          tar -czf "out/$NAME" -C VSCode-linux-x64 .
+          (cd out && sha256sum "$NAME" > SHA256SUMS)
+          jq -n --arg t "$TAG" --arg c "$COMMIT" --arg s "$(cut -d' ' -f1 out/SHA256SUMS)" \
+            --arg r "$GITHUB_RUN_ID" --arg studio "$GITHUB_SHA" \
+            '{vscode_tag:$t, vscode_commit:$c, studio_commit:$studio, run_id:$r, sha256:$s}' > out/build-info.json
+          cat out/SHA256SUMS out/build-info.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-studio-editor-linux-x64
+          path: out/
+          retention-days: 7

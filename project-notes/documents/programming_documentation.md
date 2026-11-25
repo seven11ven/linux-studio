@@ -40,8 +40,8 @@ critical security flaw (CVE-2026-120779). Code - OSS 1.148.0 has the fix.
 - the GitHub Copilot sign-in and usage addresses (`defaultChatAgent`)
 - the permission that lets Copilot use your logins (`trustedExtensionAuthAccess`)
 
-**⚠ Known limit:** Copilot (Microsoft's AI assistant) is woven into VS Code's build itself. We delete the Copilot extension folder,
-switch AI features off with locked settings (`chat.disableAIFeatures`), and the sandbox blocks every website you haven't approved.
+**⚠ Known limit:** Copilot (Microsoft's AI assistant) is woven into VS Code's build itself. We delete the Copilot extension from the finished app (VS Code's build needs it
+present while compiling, so it's removed afterwards), switch AI features off with locked settings (`chat.disableAIFeatures`), and the sandbox blocks every website you haven't approved.
 Some unused Copilot code still ships inside the app.
 
 **Where it's built:** on GitHub's computers, using **GitHub Actions** (free for public repos). Our Codespace is too small for the
@@ -51,8 +51,8 @@ build, which needs about 8 GB of memory.
 1. `.github/workflows/build-editor.yml` is the recipe. Start it by hand from the repo's **Actions** tab ("Build Linux Studio editor"
    → Run workflow), or with `gh workflow run build-editor.yml` from a terminal logged in as you.
 2. It checks that the chosen VS Code version really matches its commit hash, downloads that VS Code source, applies our settings from
-   `src/editor/product-overrides.json` (name, Open VSX extension store, removed Microsoft and Copilot addresses), deletes the Copilot
-   extension, and compiles everything.
+   `src/editor/product-overrides.json` (name, Open VSX extension store, removed Microsoft and Copilot addresses), compiles everything, and
+   then deletes the Copilot extension from the finished app.
 3. It packs the app as `linux-studio-editor-<version>-linux-x64.tar.gz`, with a `SHA256SUMS` fingerprint and a `build-info.json` record.
 4. On your machine, `scripts/fetch-editor.sh <run-id>` downloads the result, **checks the fingerprint** (it refuses to install anything
    that doesn't match), and unpacks it into `build-cache/editor/<version>/`. That folder isn't saved in git because it's large.

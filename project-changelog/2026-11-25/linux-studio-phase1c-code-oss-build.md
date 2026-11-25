@@ -32,3 +32,13 @@ Microsoft's open-source Code - OSS 1.148.0, which includes the CVE-2026-120779 f
 - **To check after the build:** whether the desktop app contacts Microsoft's webview CDN (`vscode-cdn.net`).
 - The workflow has not been run yet. The Project Manager must start it.
 - No secrets or environment variables introduced.
+
+## Update 13:19 UTC: first Code - OSS run failed; Copilot removal moved after the build
+
+- **Run:** 45620621850 failed in "Build" (13:17 UTC). The error was `prepareBuiltInCopilotRipgrepShim: Copilot SDK directory not found`.
+  VS Code's packaging step needs `extensions/copilot` to be present.
+- **Fix (chosen by the Project Manager):** the source folder is no longer deleted before the build. A new step deletes
+  `resources/app/extensions/copilot` from the finished app, and fails the build if that folder is missing or any Copilot extension is left.
+- **Version control:** the previous workflow is backed up in `version-control/build-workflow/2026-11-25_1319/`.
+- **Docs:** `programming_documentation.md` updated.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

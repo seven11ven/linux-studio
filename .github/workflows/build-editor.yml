@@ -83,10 +83,6 @@ jobs:
           mv product.json.new product.json
           jq '{nameShort, applicationName, extensionsGallery, voiceWsUrl, defaultChatAgent}' product.json
 
-      - name: Remove built-in Copilot extension
-        working-directory: vscode
-        run: rm -rf extensions/copilot
-
       - name: Install packages
         working-directory: vscode
         env:
@@ -98,6 +94,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm run gulp vscode-linux-x64-min
+
+      # VS Code's build needs the Copilot extension present (it prepares Copilot files during packaging),
+      # so it is removed from the finished app instead of from the source.
+      - name: Remove built-in Copilot extension from the finished app
+        run: |
+          EXT=VSCode-linux-x64/resources/app/extensions/copilot
+          [[ -d "$EXT" ]] || { echo "Copilot extension folder not found at $EXT; check the build layout"; exit 1; }
+          rm -rf "$EXT"
+          echo "Removed $EXT"
+          ls VSCode-linux-x64/resources/app/extensions | grep -i copilot && { echo "Copilot files still present"; exit 1; } || echo "No Copilot extension left"
 
       - name: Archive and checksum
         env:
