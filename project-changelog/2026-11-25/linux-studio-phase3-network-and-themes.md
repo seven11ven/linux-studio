@@ -75,3 +75,17 @@
 - **Version control:** previous network modules are in `version-control/network/2026-11-25_1458/`.
 - **Tests:** unit 18/18 (new: built-in block, override, restore), network 23/23 (new: pre-blocked, no saved entry). The websites window was screenshot-checked.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 15:09 UTC: official build with themes verified (dev branch)
+
+- **Run:** 45640173838 succeeded, built from `dev` at ccbb35e. The previous build was moved to `version-control/editor/2026-11-25_1507/`.
+- **Verified:**
+  - SHA256 OK (`faa5cee2…38f3`) and the telemetry check passed
+  - the theme extension in the app is identical to `src/editor/theme/` and contains no code
+  - `defaultChatAgent` addresses are `0.0.0.0`, and there's no Copilot extension or SDK
+  - `product.json` checksums match
+- **Smoke launch:** opens in Linux Studio Light (the Xvfb desktop reports light) in Restricted Mode.
+  **No Google pop-up** (pre-block works). The only pop-up was `raw.githubusercontent.com`, the malicious-extension list, which is expected.
+  0 processes or temp folders left afterwards.
+- `build/editor-version.json` updated.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
