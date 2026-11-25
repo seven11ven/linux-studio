@@ -101,13 +101,20 @@ jobs:
 
       # VS Code's build needs the Copilot extension present (it prepares Copilot files during packaging),
       # so it is removed from the finished app instead of from the source.
-      - name: Remove built-in Copilot extension from the finished app
+      - name: Remove built-in Copilot extension and SDK engine from the finished app
         run: |
           EXT=VSCode-linux-x64/resources/app/extensions/copilot
           [[ -d "$EXT" ]] || { echo "Copilot extension folder not found at $EXT; check the build layout"; exit 1; }
           rm -rf "$EXT"
           echo "Removed $EXT"
           ls VSCode-linux-x64/resources/app/extensions | grep -i copilot && { echo "Copilot files still present"; exit 1; } || echo "No Copilot extension left"
+          # Copilot SDK prebuilt engine (a compiled binary with telemetry addresses that can't be safely edited).
+          SDK=VSCode-linux-x64/resources/app/node_modules.asar.unpacked/@microsoft
+          shopt -s nullglob
+          found=("$SDK"/copilot-sdk*)
+          (( ${#found[@]} )) || { echo "Copilot SDK folder not found under $SDK; check the build layout"; exit 1; }
+          rm -rf "${found[@]}"
+          printf 'Removed %s\n' "${found[@]}"
 
       - name: Verify no telemetry addresses in the finished app
         run: studio/scripts/neutralise-telemetry.sh --check VSCode-linux-x64

@@ -71,3 +71,14 @@ Microsoft's open-source Code - OSS 1.148.0, which includes the CVE-2026-120779 f
   `product.json` checksums, so it was redesigned to run before the build.
 - **Next:** rebuild. Before fetching the new build, move the current `build-cache/editor/1.148.0/` to `version-control/editor/<timestamp>/`.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 13:48 UTC: telemetry check caught the Copilot SDK engine; it's now removed too
+
+- **Run:** 45625549432. The build completed and the cleaning step changed 326 source files, but "Verify no telemetry addresses" failed on one file:
+  `node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-x64/prebuilds/linux-x64/runtime.node`. That's Microsoft's prebuilt Copilot engine,
+  a compiled binary that can't be safely edited.
+- **Fix (chosen by the Project Manager):** the Copilot removal step now also deletes `node_modules.asar.unpacked/@microsoft/copilot-sdk*`
+  from the finished app, and fails if that folder isn't found. The check was not loosened.
+- **To confirm in Phase 2:** the editor starts normally without the Copilot SDK.
+- **Version control:** the previous workflow is backed up in `version-control/build-workflow/2026-11-25_1347/`.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

@@ -40,8 +40,9 @@ critical security flaw (CVE-2026-120779). Code - OSS 1.148.0 has the fix.
 - the GitHub Copilot sign-in and usage addresses (`defaultChatAgent`)
 - the permission that lets Copilot use your logins (`trustedExtensionAuthAccess`)
 
-**⚠ Known limit:** Copilot (Microsoft's AI assistant) is woven into VS Code's build itself. We delete the Copilot extension from the finished app (VS Code's build needs it
-present while compiling, so it's removed afterwards), switch AI features off with locked settings (`chat.disableAIFeatures`), and the sandbox blocks every website you haven't approved.
+**⚠ Known limit:** Copilot (Microsoft's AI assistant) is woven into VS Code's build itself. We delete the Copilot extension and Copilot's ready-built engine (`copilot-sdk`, which
+contains telemetry addresses that can't be safely edited) from the finished app. VS Code's build needs them present while
+compiling, so they're removed afterwards, switch AI features off with locked settings (`chat.disableAIFeatures`), and the sandbox blocks every website you haven't approved.
 Some unused Copilot code still ships inside the app.
 
 **Where it's built:** on GitHub's computers, using **GitHub Actions** (free for public repos). Our Codespace is too small for the
