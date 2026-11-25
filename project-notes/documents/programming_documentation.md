@@ -58,6 +58,17 @@ build, which needs about 8 GB of memory.
    that doesn't match), and unpacks it into `build-cache/editor/<version>/`. That folder isn't saved in git because it's large.
 5. Copy `build-info.json` to `build/editor-version.json` and commit it. That's our permanent record of exactly what was built.
 
+**Telemetry addresses removed:** 13 built-in extensions (git, markdown, typescript and others) and a few core files contain
+Microsoft's telemetry "collector" addresses and keys. `scripts/neutralise-telemetry.sh` runs during the build, after packages are
+installed and before compiling, and replaces every collector address with `0.0.0.0`, an address that goes nowhere. It covers
+`*.data.microsoft.com`, `dc.services.visualstudio.com` and Application Insights. After the build, the same script with `--check` scans
+the finished app, including packed archives, and stops the build if any address is left.
+- The keys themselves are left in place. They're compiled into the extensions' code, and removing them could crash those extensions.
+  With nowhere to send data, they do nothing.
+- This is the third layer of protection, after the locked `telemetry.telemetryLevel: off` setting and the proxy.
+- It must run before the build. Editing the finished app would corrupt its packed archive (`node_modules.asar`) and break VS Code's
+  own file fingerprints.
+
 **Locked settings:** `src/editor/default-settings.json` lists the privacy settings the launcher will force on every start
 (telemetry off, updates off, AI off, built-in file dialog, proxy, and the terminal starting in `/project-folder`).
 

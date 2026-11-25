@@ -42,3 +42,32 @@ Microsoft's open-source Code - OSS 1.148.0, which includes the CVE-2026-120779 f
 - **Version control:** the previous workflow is backed up in `version-control/build-workflow/2026-11-25_1319/`.
 - **Docs:** `programming_documentation.md` updated.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 13:31 UTC: build succeeded and verified
+
+- **Run:** 45622687556 succeeded. `scripts/fetch-editor.sh` downloaded it, the SHA256 matched (`f4e3e5f7…5cfa`), and it was unpacked to
+  `build-cache/editor/1.148.0/` (827 MB, ignored by git). The record is saved to `build/editor-version.json`.
+- **Verified:** `product.json` shows Linux Studio, version 1.148.0, commit `661626d0…`, and the Open VSX gallery. The voice, Copilot,
+  auth-sharing, telemetry-key and update entries are absent. No Copilot extension is in the app.
+- **Couldn't run:** `linux-studio-editor --version`. The Codespace lacks desktop libraries (`libatk-1.0.so.0`). The Phase 2 bundled runtime will provide them.
+- **Found:** 13 built-in extensions (git, markdown, typescript and others) contain Microsoft telemetry keys (`aiKey`) and collector addresses
+  (`mobile.events.data.microsoft.com`, `dc.services.visualstudio.com`). They are inactive while `telemetry.telemetryLevel` is `off`, which we lock,
+  and the proxy blocks them. The webview CDN address (`vscode-cdn.net`) is also still present.
+  A stronger fix was proposed to the Project Manager.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 13:35 UTC: neutralise telemetry addresses (Project Manager approved)
+
+- **Added `scripts/neutralise-telemetry.sh`:**
+  - Clean mode (run on the source before the build) replaces `*.data.microsoft.com`, `dc(-int).services.visualstudio.com` and
+    Application Insights addresses with `0.0.0.0`. It edits text files only.
+  - `--check` mode scans a finished app, including `.asar` archives, and fails if any address remains.
+  - Tested on a sample tree and against the current build. The check correctly fails on the un-neutralised 1.148.0 build.
+- **Workflow:** added "Neutralise telemetry addresses" (after install, before build) and "Verify no telemetry addresses in the finished app".
+  The previous workflow is backed up in `version-control/build-workflow/2026-11-25_1334/`.
+- **Changed from the proposal:** extension telemetry keys are not stripped. They're compiled into extension code, for example the git
+  extension calls `new TelemetryReporter(aiKey)` at startup, so removing them risks crashing extensions. With the addresses neutralised they're inert.
+- **Design note:** a first version edited the finished app. Testing showed it would corrupt `node_modules.asar` and invalidate
+  `product.json` checksums, so it was redesigned to run before the build.
+- **Next:** rebuild. Before fetching the new build, move the current `build-cache/editor/1.148.0/` to `version-control/editor/<timestamp>/`.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

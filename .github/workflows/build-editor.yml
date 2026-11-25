@@ -89,6 +89,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm install --frozen-lockfile
 
+      - name: Neutralise telemetry addresses
+        working-directory: vscode
+        run: ../studio/scripts/neutralise-telemetry.sh .
+
       - name: Build
         working-directory: vscode
         env:
@@ -104,6 +108,9 @@ jobs:
           rm -rf "$EXT"
           echo "Removed $EXT"
           ls VSCode-linux-x64/resources/app/extensions | grep -i copilot && { echo "Copilot files still present"; exit 1; } || echo "No Copilot extension left"
+
+      - name: Verify no telemetry addresses in the finished app
+        run: studio/scripts/neutralise-telemetry.sh --check VSCode-linux-x64
 
       - name: Archive and checksum
         env:
