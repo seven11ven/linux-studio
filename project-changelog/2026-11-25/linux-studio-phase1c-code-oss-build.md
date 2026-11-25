@@ -82,3 +82,20 @@ Microsoft's open-source Code - OSS 1.148.0, which includes the CVE-2026-120779 f
 - **To confirm in Phase 2:** the editor starts normally without the Copilot SDK.
 - **Version control:** the previous workflow is backed up in `version-control/build-workflow/2026-11-25_1347/`.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 13:57 UTC: Phase 1c complete, clean build verified
+
+- **Run:** 45627380627 succeeded. The cleaning step changed 326 source files. The Copilot extension and the
+  `copilot-sdk-linux-x64` engine were removed, and the in-build telemetry check passed.
+- **Version control:** the previous build (run 45622687556) was moved to `version-control/editor/2026-11-25_1357/`.
+  Its `app/` folder is ignored by git; its `build-info.json` and `SHA256SUMS` are committed as the record.
+- **Local verification:**
+  - SHA256 OK (`423839b4…2bfb`), unpacked to `build-cache/editor/1.148.0/` (628 MB, down from 827 MB).
+  - `neutralise-telemetry.sh --check` passed, including inside `.asar` archives.
+  - `product.json` is correct (Linux Studio 1.148.0, Open VSX; the voice, Copilot and auth-sharing entries are absent).
+  - No Copilot extension or SDK is left.
+  - All `product.json` file checksums match, so VS Code won't report the install as corrupt.
+- **Record:** `build/editor-version.json` updated to this build.
+- **Still open, for Phase 2/3:** confirm the app launches; the Codespace lacks desktop libraries, so the bundled runtime will provide them.
+  Decide how to handle the webview CDN address (`vscode-cdn.net`).
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
