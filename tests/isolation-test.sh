@@ -24,7 +24,7 @@ check() {  # check "<description>" "<command inside sandbox>" "<expected output 
   if [[ "$out" =~ $3 ]]; then echo "PASS  $1"; ((PASS++)); else echo "FAIL  $1"; echo "      got: ${out//$'\n'/ | }"; ((FAIL++)); fi
 }
 
-check "Only sandbox folders at /"            'ls / | tr "\n" " "'                     '^(app|bin|boot|dev|etc|home|lib|lib64|media|mnt|opt|proc|project-folder|root|run|sbin|srv|sys|tmp|usr|var| )+$'
+check "Only sandbox folders at /"            'ls / | tr "\n" " "'                     '^(app|bin|boot|dev|etc|home|lib|lib64|media|mnt|opt|proc|project-folder|root|run|sbin|srv|sys|tmp|toolchains|usr|var| )+$'
 check "Real home folder is not visible"      "ls /home; ls '$HOME' 2>&1 || true"     '^user'$'\n''.*No such file'
 check "/etc/shadow is the runtime's, no passwords" "grep -cE '^[^:]+:\\\$' /etc/shadow; grep -c '^$(id -un):' /etc/shadow" '^0'$'\n''0$'
 check "/sys is empty (no host kernel info)"   'ls -A /sys | wc -l'                    '^0$'

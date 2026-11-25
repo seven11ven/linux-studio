@@ -11,6 +11,8 @@ For every connection the proxy:
   4. passes the encrypted bytes through without reading them, and logs nothing about the traffic.
 
 Usage: studio_proxy.py --socket PATH --config PATH [--prompt PATH] [--parent-pid PID]
+       studio_proxy.py --socket PATH --fixed-allowlist FILE [--parent-pid PID]
+         (Toolchains explorer: only the sites in FILE, no pop-ups, nothing saved)
 Standard library only.
 """
 import argparse
@@ -148,6 +150,25 @@ def _lookup(host, box):
         box.append(socket.getaddrinfo(host, ALLOWED_PORT, type=socket.SOCK_STREAM))
     except (OSError, UnicodeError):
         box.append([])
+
+
+class FixedPolicy:
+    """Only the sites listed in a fixed file (official download sites). No pop-ups, nothing written."""
+
+    def __init__(self, path):
+        import json
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        self.sites = {h for h in (normalise_host(x) for x in data.get("sites", [])) if h}
+
+    def allowed(self, host):
+        return host in self.sites
+
+    def still_allowed(self, host):
+        return host in self.sites
+
+    def touch(self, host):
+        pass
 
 
 def resolve_public(host):
@@ -308,15 +329,19 @@ class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--socket", required=True)
-    ap.add_argument("--config", required=True)
+    ap.add_argument("--config")
+    ap.add_argument("--fixed-allowlist")
     ap.add_argument("--prompt")
     ap.add_argument("--parent-pid", type=int)
     args = ap.parse_args()
+    if bool(args.config) == bool(args.fixed_allowlist):
+        ap.error("use exactly one of --config or --fixed-allowlist")
 
     old_umask = os.umask(0o177)              # socket readable/writable by you only
     server = Server(args.socket, Handler)
     os.umask(old_umask)
-    server.policy = Policy(Store(args.config), args.prompt)
+    server.policy = (FixedPolicy(args.fixed_allowlist) if args.fixed_allowlist
+                     else Policy(Store(args.config), args.prompt))
     server.slots = threading.BoundedSemaphore(MAX_TUNNELS)
 
     def stop(*_):

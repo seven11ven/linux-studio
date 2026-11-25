@@ -16,7 +16,7 @@ DEST="$ROOT/build-cache/runtime/$(date -u +%Y-%m-%d)"
 
 PACKAGES=(
   # shell and basic tools
-  bash coreutils procps less git ca-certificates curl iproute2
+  bash coreutils procps less git ca-certificates curl iproute2 gpgv xz-utils
   # languages and build tools
   python3 python3-pip python3-venv nodejs npm gcc g++ clang make cmake
   # fonts
@@ -43,7 +43,7 @@ mmdebstrap --mode=unshare --variant=minbase --include="$INCLUDE" --keyring="$KEY
   --customize-hook="copy-in '$ROOT/src/runtime/overlay/etc/linux-studio' /etc" \
   --customize-hook='echo ". /etc/linux-studio/bashrc" >> "$1/etc/bash.bashrc"' \
   --customize-hook=': > "$1/etc/machine-id"; : > "$1/etc/hostname"' \
-  --customize-hook='mkdir -p "$1/home/user" "$1/project-folder" "$1/app" "$1/run/user"' \
+  --customize-hook='mkdir -p "$1/home/user" "$1/project-folder" "$1/app" "$1/run/user" "$1/toolchains"' \
   --customize-hook='chroot "$1" dpkg-query -W -f="\${Package} \${Version}\n" > "$1/etc/linux-studio/manifest.txt"' \
   --customize-hook='rm -rf "$1"/var/cache/apt/archives/*.deb "$1"/var/lib/apt/lists/*' \
   "$SUITE" "$TMP/rootfs.tar" "$MIRROR"

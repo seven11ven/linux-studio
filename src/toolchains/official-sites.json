@@ -1,0 +1,15 @@
+{
+  "// About": "The ONLY addresses the Toolchains explorer's sandboxed downloader may reach (HTTPS, port 443). Checked by studio_proxy.py --fixed-allowlist.",
+  "sites": [
+    "nodejs.org",
+    "go.dev",
+    "dl.google.com",
+    "static.rust-lang.org",
+    "api.adoptium.net",
+    "api.github.com",
+    "github.com",
+    "raw.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "objects.githubusercontent.com"
+  ]
+}

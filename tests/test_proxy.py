@@ -211,5 +211,18 @@ class Decisions(unittest.TestCase):
             self.store.set_site("https://evil.com", "allowed")
 
 
+class FixedList(unittest.TestCase):
+    def test_only_listed_sites(self):
+        d = tempfile.mkdtemp()
+        f = os.path.join(d, "sites.json")
+        with open(f, "w") as fh:
+            json.dump({"sites": ["nodejs.org", "Go.Dev.", "http://bad/", "1.2.3.4"]}, fh)
+        p = studio_proxy.FixedPolicy(f)
+        self.assertEqual(p.sites, {"nodejs.org", "go.dev"})
+        self.assertTrue(p.allowed("nodejs.org"))
+        self.assertFalse(p.allowed("example.com"))
+        self.assertFalse(p.still_allowed("www.nodejs.org"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

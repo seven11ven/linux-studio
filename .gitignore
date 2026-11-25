@@ -25,6 +25,8 @@ project-builds/release-builds/
 # Version-control backups: text files (scripts, configs, manifests) are kept;
 # large binaries are ignored by the archive/package patterns above plus these:
 version-control/**/app/
+version-control/**/runtime/
+version-control/**/rootfs/
 version-control/**/*.bin
 version-control/**/*.so
 

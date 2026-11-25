@@ -223,6 +223,65 @@ Accepted as low risk: an approved name that points at your own public IP address
   there overrides it.
 - `raw.githubusercontent.com` asks as normal.
 
+## Toolchains explorer (Phase 4)
+
+A window for adding **extra languages and versions** from their **official publishers**. Open it with `linux-studio --toolchains`.
+
+### How it stays safe
+- **The window** (`src/toolchains/explorer.py`, GTK4, on your desktop) never touches the internet or the toolchains folder itself.
+- **The downloader** (`src/toolchains/worker.py`) runs in **its own sandbox**:
+  - It can write **only** to Linux Studio's toolchains folder (`~/.local/share/linux-studio/toolchains`).
+  - It can reach **only** the official sites in `src/toolchains/official-sites.json`, through the Linux Studio proxy in "fixed list" mode.
+    There are no pop-ups, and every other site is refused.
+  - When you close the window, the downloader and its connection stop.
+- **Every download is checked before it's installed:**
+  1. The **SHA-256 checksum** must match the publisher's.
+  2. The **publisher's signature** must check out against a key stored in `src/toolchains/keys/` (see its README for fingerprints and sources).
+     This applies to Node.js, Rust, Java (Temurin) and CMake. Go and python-build-standalone publish checksums only.
+  3. It's **unpacked safely**. Archives with absolute paths, `..`, links leaving the folder, device files, or more than 4 GB are refused.
+  4. It's built in a staging folder and moved into place **only if every step succeeded**. Otherwise nothing is installed.
+- **Inside the editor**, `/toolchains` is **read-only**, so code in your project can't change installed toolchains.
+
+### Security review (2026-11-25, jake-lockley)
+Fixed:
+- **High:** chosen toolchains came first on the downloader's PATH, so a compromised one could replace `gpgv` and switch off signature checks.
+  The downloader now gets a fixed PATH (`/usr/bin:/bin`) and runs every program by full path. A test plants fake tools to prove they never run.
+- **Medium:** `gpgv` accepts any key in the keyring, including expired ones. Signatures are now read in machine format (`--status-fd`)
+  and must come from a currently valid signing key in `src/toolchains/keys/allowed-signers.json`.
+- **Low:** caps on message size between window and downloader and on files per archive (200,000).
+- **Info:** Rust's version list is now signature-checked too, so an older release can't be passed off as the newest.
+
+Accepted and documented:
+- The official-sites list includes GitHub, which hosts any project's files. The downloader holds no personal data.
+- Go and python-build-standalone are checked by SHA-256 only. The window says so.
+
+
+- **Installed** tab: the bundled tools, plus each extra version with **Use this version** and **Remove**.
+- "Use this version" makes that version the one your terminal runs: `/toolchains/<tool>/current/bin` comes first on PATH.
+  Restart the editor afterwards. If no version is chosen, the bundled tool is used.
+- Go settings inside the sandbox: telemetry is **off** (a settings file is written at every start) and `GOTOOLCHAIN=local`, so Go never
+  downloads other Go versions by itself.
+
+### Sources
+| Language | Publisher | Checked by |
+|---|---|---|
+| Python | python-build-standalone (Astral, GitHub) | SHA-256 |
+| Node.js | nodejs.org | SHA-256 + Node.js release-team signature |
+| Go | go.dev / dl.google.com | SHA-256 |
+| Rust | static.rust-lang.org | SHA-256 + Rust release signature |
+| Java (Temurin) | adoptium.net / GitHub | SHA-256 + Adoptium signature |
+| CMake | Kitware (GitHub) | SHA-256 + CMake release signature |
+
+All are free, and no account is needed. GitHub-hosted downloads pass through GitHub's servers, which see your public IP address.
+
+### Tests
+- `python3 tests/test_toolchains.py`: 16 offline tests, covering tampered checksums, bad and wrong-key signatures, path-escape and device-file archives,
+  the size limit, the install, use and remove flow, and odd names.
+- `tests/toolchains-test.sh --runtime-dir <rootfs>`: 10 end-to-end checks with real downloads (about 100 MB).
+
+### Runtime change
+The bundled mini-Linux now includes `gpgv` (signature checking) and `xz-utils`, and has a `/toolchains` mount point.
+
 ## Colour themes (Phase 3b)
 - `src/editor/theme/` is a tiny built-in extension with **Linux Studio Dark** and **Linux Studio Light**. It contains colour data only,
   with no code, and is generated from the mockups' palette by `scripts/make-themes.py`.

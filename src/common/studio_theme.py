@@ -35,6 +35,16 @@ button:focus-visible { outline: 2px solid #4cc296; outline-offset: 2px; }
 .ls-row { border-bottom: 1px solid #2c3732; padding: 6px 0; }
 .ls-header { color: #97a59f; font-size: 0.8em; font-weight: 600; }
 headerbar { background-color: #1d2522; color: #e3ebe7; }
+.ls-banner { background-color: #1c3a2f; color: #e3ebe7; padding: 10px 16px; }
+.ls-side { background-color: #1d2522; border-right: 1px solid #2c3732; padding: 10px; min-width: 170px; }
+button.ls-side-item { background-image: none; background-color: transparent; border-color: transparent; box-shadow: none; padding: 8px 10px; }
+button.ls-side-item label { color: #e3ebe7; font-weight: normal; }
+button.ls-side-item:hover { background-color: #171e1b; }
+button.ls-side-item:checked { background-color: #1c3a2f; }
+button.ls-side-item:checked label { color: #4cc296; font-weight: 600; }
+.ls-subtitle { font-weight: 600; margin-top: 8px; }
+.ls-mono { font-family: monospace; }
+.ls-pill { background-color: #1d2522; color: #97a59f; border: 1px solid #2c3732; border-radius: 99px; padding: 2px 10px; font-size: 0.85em; }
 """
 
 _provider = None
