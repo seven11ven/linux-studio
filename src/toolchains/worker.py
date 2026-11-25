@@ -410,9 +410,14 @@ def install(tool, version):
         top = single_top_dir(unpacked)
         if tool == "rust":                    # Rust's standalone installer copies files into a prefix
             prefix = os.path.join(work, "prefix")
-            r = subprocess.run(["/bin/sh", os.path.join(top, "install.sh"), f"--prefix={prefix}", "--disable-ldconfig",
-                                "--without=rust-docs"], capture_output=True, text=True, timeout=1800, cwd=top,
-                               env=CLEAN_ENV)
+            # Runs in a nested sandbox (security review #5): it sees no other toolchains, has no network,
+            # and can write only inside this install's own work folder.
+            nested = ["/usr/bin/bwrap", "--unshare-all", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
+                      "--ro-bind", "/", "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+                      "--tmpfs", "/run", "--tmpfs", ROOT, "--bind", work, work, "--chdir", top]
+            r = subprocess.run(nested + ["/bin/sh", os.path.join(top, "install.sh"), f"--prefix={prefix}",
+                                         "--disable-ldconfig", "--without=rust-docs"],
+                               capture_output=True, text=True, timeout=1800, env=CLEAN_ENV)
             if r.returncode != 0:
                 raise Fail("Rust's installer failed, so nothing was installed.")
             top = prefix

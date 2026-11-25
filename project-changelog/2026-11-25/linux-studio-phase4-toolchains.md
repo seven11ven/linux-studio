@@ -34,7 +34,7 @@
 | 2 | Medium | Python and Go are checksum-only, from the same source | **Documented**; the window labels them as not signed by the publisher. A decision on stronger options was asked of the PM. |
 | 3 | Medium | gpgv accepts any keyring key, including expired, and parsed English text | **Fixed** (`--status-fd`, VALIDSIG, signer allowlist). Unit-tested. |
 | 4 | Low | The allowlist includes general GitHub hosts | **Accepted, documented** |
-| 5 | Low | Rust's install.sh can write to all toolchains (it's signature-checked) | **Open**; a nested sandbox was suggested and asked of the PM |
+| 5 | Low | Rust's install.sh can write to all toolchains (it's signature-checked) | **Fixed** (PM approved): runs in a nested bwrap sandbox (see update below) |
 | 6 | Low | No caps on message size or archive entries | **Fixed** |
 | 7 | Info | Rust version list not signature-checked (downgrade) | **Fixed** |
 
@@ -47,3 +47,17 @@
 ## Impacts
 - Linux Studio can now add extra language versions from official publishers. Downloads are verified and installed read-only for the editor.
 - No secrets or environment variables introduced.
+
+## Update 18:35 UTC: nested sandbox for Rust's installer (PM decision)
+
+- **PM decisions:** Python and Go stay checksum-only, clearly labelled. Rust's installer gets a nested sandbox.
+- **Runtime:** added `bubblewrap` (0.12.0, which has the CVE-2026-87766 fix) and rebuilt. The previous runtime is in `version-control/runtime/2026-11-25_1830/` (ignored by git).
+- **`worker.py`:** `install.sh` now runs under a nested `bwrap`. It has no network, sees an empty `/toolchains` and `/run`, has read-only `/`, and can write
+  only to its own work folder. If the nested sandbox can't start, the install fails. The previous version is in `version-control/toolchains/2026-11-25_1831/`.
+- **Verified:**
+  - a nested-sandbox probe could write only to its work folder, `/usr` was read-only, and other toolchains were hidden
+  - a **real Rust 1.100.0 install** passed SHA-256 and signature checks and installed through the nested sandbox (42 s)
+  - in the editor sandbox, `rustc` and `cargo` 1.100.0 work, and `cargo new` plus `cargo run` print "Hello, world!"
+  - no staging leftovers
+- **Tests:** toolchains unit 17/17, e2e 12/12, isolation 17/17, network 23/23.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

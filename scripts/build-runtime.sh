@@ -16,7 +16,7 @@ DEST="$ROOT/build-cache/runtime/$(date -u +%Y-%m-%d)"
 
 PACKAGES=(
   # shell and basic tools
-  bash coreutils procps less git ca-certificates curl iproute2 gpgv xz-utils
+  bash coreutils procps less git ca-certificates curl iproute2 gpgv xz-utils bubblewrap
   # languages and build tools
   python3 python3-pip python3-venv nodejs npm gcc g++ clang make cmake
   # fonts

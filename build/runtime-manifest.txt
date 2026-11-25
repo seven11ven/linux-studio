@@ -1,4 +1,4 @@
-# Linux Studio runtime: Debian trixie, built 2026-11-25T15:18Z
+# Linux Studio runtime: Debian trixie, built 2026-11-25T18:31Z
 adwaita-icon-theme 48.1-1
 apt 3.0.4
 at-spi2-common 2.56.2-1+deb13u2
@@ -9,6 +9,7 @@ binutils 2.44-3
 binutils-common 2.44-3
 binutils-x86-64-linux-gnu 2.44-3
 bsdutils 1:2.41.5-0+deb13u1
+bubblewrap 0.12.0-1~deb13u1
 ca-certificates 20250419+deb13u1
 clang 1:19.0-63
 clang-19 1:19.1.7-3+b1

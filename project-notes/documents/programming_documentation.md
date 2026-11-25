@@ -251,6 +251,9 @@ Fixed:
 - **Low:** caps on message size between window and downloader and on files per archive (200,000).
 - **Info:** Rust's version list is now signature-checked too, so an older release can't be passed off as the newest.
 
+- **Low (fixed later the same day, PM-approved):** Rust's installer script now runs in a **nested sandbox**. It sees no other toolchains,
+  has no network, and can write only to its own install folder. The mini-Linux includes `bubblewrap` 0.12.0 for this.
+
 Accepted and documented:
 - The official-sites list includes GitHub, which hosts any project's files. The downloader holds no personal data.
 - Go and python-build-standalone are checked by SHA-256 only. The window says so.
@@ -280,7 +283,7 @@ All are free, and no account is needed. GitHub-hosted downloads pass through Git
 - `tests/toolchains-test.sh --runtime-dir <rootfs>`: 10 end-to-end checks with real downloads (about 100 MB).
 
 ### Runtime change
-The bundled mini-Linux now includes `gpgv` (signature checking) and `xz-utils`, and has a `/toolchains` mount point.
+The bundled mini-Linux now includes `gpgv` (signature checking), `xz-utils` and `bubblewrap` (for the nested Rust installer sandbox), and has a `/toolchains` mount point.
 
 ## Colour themes (Phase 3b)
 - `src/editor/theme/` is a tiny built-in extension with **Linux Studio Dark** and **Linux Studio Light**. It contains colour data only,
