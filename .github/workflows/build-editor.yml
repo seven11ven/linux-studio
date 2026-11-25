@@ -78,10 +78,13 @@ jobs:
       - name: Apply Linux Studio product overrides
         working-directory: vscode
         run: |
+          # __remove: keys deleted. __neutralise_urls: keys kept (VS Code requires them) but every web address set to https://0.0.0.0.
           jq --slurpfile o ../studio/src/editor/product-overrides.json \
-            '. * ($o[0] | del(.__remove)) | delpaths($o[0].__remove | map([.]))' product.json > product.json.new
+            '. * ($o[0] | del(.__remove, .__neutralise_urls)) | delpaths($o[0].__remove | map([.]))
+             | reduce ($o[0].__neutralise_urls[]) as $k (.; if has($k) then .[$k] |= walk(if type == "string" and test("^(https?|wss?)://") then "https://0.0.0.0" else . end) else . end)' \
+            product.json > product.json.new
           mv product.json.new product.json
-          jq '{nameShort, applicationName, extensionsGallery, voiceWsUrl, defaultChatAgent}' product.json
+          jq '{nameShort, applicationName, extensionsGallery, voiceWsUrl, chatUrls: [.defaultChatAgent | .. | strings | select(test("://"))] | unique}' product.json
 
       - name: Install packages
         working-directory: vscode

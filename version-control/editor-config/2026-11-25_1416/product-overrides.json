@@ -1,0 +1,21 @@
+{
+  "nameShort": "Linux Studio",
+  "nameLong": "Linux Studio",
+  "applicationName": "linux-studio-editor",
+  "dataFolderName": ".linux-studio",
+  "sharedDataFolderName": ".linux-studio-shared",
+  "linuxIconName": "io.github.seven11ven.linuxstudio",
+  "linuxDesktopName": "io.github.seven11ven.linuxstudio.desktop",
+  "urlProtocol": "linux-studio",
+  "licenseName": "MIT",
+  "licenseUrl": "https://github.com/seven11ven/linux-studio",
+  "reportIssueUrl": "https://github.com/seven11ven/linux-studio/issues/new",
+  "extensionsGallery": {
+    "serviceUrl": "https://open-vsx.org/vscode/gallery",
+    "itemUrl": "https://open-vsx.org/vscode/item",
+    "latestUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
+    "controlUrl": "https://raw.githubusercontent.com/EclipseFdn/publish-extensions/refs/heads/master/extension-control/extensions.json"
+  },
+  "linkProtectionTrustedDomains": ["https://open-vsx.org"],
+  "__remove": ["voiceWsUrl", "defaultChatAgent", "trustedExtensionAuthAccess", "updateUrl", "aiConfig", "ariaKey", "enableTelemetry"]
+}

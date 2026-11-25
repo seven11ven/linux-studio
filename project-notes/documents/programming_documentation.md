@@ -18,7 +18,7 @@ Linux Studio is a code editor (built from Code - OSS, the open-source version of
 - Inside the room, the computer has a fake name (`studio`), a fake user (`user`), and no real network
   devices, so extensions can't learn who or where you are. Approved websites can still see your public IP address.
 
-## The parts (planned)
+## The parts
 
 | Part | Language | What it does | Why this choice |
 |---|---|---|---|
@@ -83,6 +83,71 @@ external piece to an exact fingerprint, and publishes nothing publicly. The buil
 **History:** the earlier VSCodium-based recipe is backed up in `version-control/build-workflow/2026-11-25_1305/`.
 
 No API keys, webhooks or secrets are used. If any are ever added, they'll be explained here and listed in `/.env_example`.
+
+## Running the editor in the sandbox (Phase 2)
+
+### The private mini-Linux ("runtime"): `scripts/build-runtime.sh`
+A tiny Debian 13 system that the sandbox uses as its `/`. It contains the shell, Git, Python, Node.js, C/C++ compilers, fonts,
+and the libraries the editor needs. Your real system's files are never used inside the sandbox.
+- Built with `mmdebstrap` without root. Every package is checked against **Debian's signing keys** (`debian-archive-keyring`),
+  and the build refuses to run without them.
+- Everything comes from Debian's "main" section, which by Debian policy contains only free software.
+  `build/runtime-manifest.txt` lists every package and version.
+- `src/runtime/overlay/etc/linux-studio/bashrc` sets the terminal prompt to show `project-folder/apples $` (no leading `/`) and stops
+  pip and npm from contacting the internet on their own.
+- Output: `build-cache/runtime/<date>/rootfs/` (about 1.4 GB, not stored in git). Rebuild it with `scripts/build-runtime.sh`.
+
+### The launcher: `src/launcher/linux-studio` (Bash)
+This is what you run. Step by step:
+1. **Finds your project folder** in `~/.config/linux-studio/config`. If there isn't one, it opens the first-run window.
+2. **Safety rules for the folder:** it refuses `/`, system folders, your whole home folder, folders that contain your home folder,
+   and Linux Studio's own settings folders.
+3. **Creates a fake identity for this launch** in a temporary folder that's deleted when the editor closes:
+   computer name `studio`, user `user`, and a new random machine ID every time.
+4. **Re-applies the locked privacy settings** from `src/editor/default-settings.json` on top of your own settings, so they can't be switched off.
+5. **Builds the sandbox with bubblewrap.** Inside, the editor sees only:
+   - the mini-Linux, read-only
+   - the editor, read-only, at `/app`
+   - Linux Studio's private home at `/home/user`, stored on your computer in `~/.local/share/linux-studio/home`
+   - your project folder at `/project-folder`
+
+   It has no network, no `/sys`, no special permissions ("capabilities"), and no graphics card unless you use `--gpu`.
+6. **Connects the window to your screen.** Wayland is used first. X11 is a fallback and prints a warning, because other X11 programs can
+   peek at windows.
+
+Useful commands:
+- `linux-studio --set-project-folder ~/Code/my-project`: change the project folder.
+- `linux-studio --shell`: open a terminal inside the same sandbox, for checking or debugging.
+- `linux-studio --gpu`: allow the graphics card, for smoother drawing at a small privacy cost (your GPU model becomes visible).
+- `--editor-dir` and `--runtime-dir`: use a development build. The installed defaults are in `/opt/linux-studio/`.
+
+**Saved logins:** the sandbox can't reach your desktop's password keyring, so the editor uses `--password-store=basic`. Logins saved by
+extensions are stored in Linux Studio's private folder, obscured but not encrypted.
+
+**Chromium's own sandbox stays on** inside ours, so `--no-sandbox` is never used.
+
+### The first-run window: `src/first-run/first_run.py` (Python + GTK4)
+This is the window from the approved mockup, used to choose the project folder. It runs on your desktop, outside the sandbox, before the
+editor starts. It doesn't check folders itself; it asks the launcher (`--set-project-folder`), so the safety rules live in one place.
+It uses the system Python (`/usr/bin/python3`), because other Python installs such as pyenv or conda usually can't load GTK.
+
+### Why `product.json` still has a Copilot entry
+VS Code 1.148 crashes at start-up ("Onboarding requires a default chat agent product configuration") if the `defaultChatAgent` entry is
+missing. So we keep it, but every web address in it is replaced with `https://0.0.0.0`, an address that goes nowhere (see
+`__neutralise_urls` in `src/editor/product-overrides.json`).
+
+### Tests: `tests/isolation-test.sh`
+`tests/isolation-test.sh --runtime-dir <rootfs>` runs 17 checks with throwaway settings folders, so your real settings are never touched.
+It checks:
+- only sandbox folders are visible, and your home folder isn't
+- there are no host passwords, and `/sys` is empty
+- the hostname is studio, the user is user, and the only network device is loopback
+- there's no internet
+- the terminal starts in the project folder, and the prompt shows `project-folder/...`
+- there's no GPU, and all capabilities are dropped
+- files you make appear in the real project folder
+- the machine ID changes every launch
+- temporary files are cleaned up, and unsafe folders are refused
 
 ## Phase 1 research results (2026-11-25)
 

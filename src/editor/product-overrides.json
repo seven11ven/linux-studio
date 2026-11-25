@@ -16,6 +16,18 @@
     "latestUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
     "controlUrl": "https://raw.githubusercontent.com/EclipseFdn/publish-extensions/refs/heads/master/extension-control/extensions.json"
   },
-  "linkProtectionTrustedDomains": ["https://open-vsx.org"],
-  "__remove": ["voiceWsUrl", "defaultChatAgent", "trustedExtensionAuthAccess", "updateUrl", "aiConfig", "ariaKey", "enableTelemetry"]
+  "linkProtectionTrustedDomains": [
+    "https://open-vsx.org"
+  ],
+  "__remove": [
+    "voiceWsUrl",
+    "trustedExtensionAuthAccess",
+    "updateUrl",
+    "aiConfig",
+    "ariaKey",
+    "enableTelemetry"
+  ],
+  "__neutralise_urls": [
+    "defaultChatAgent"
+  ]
 }
