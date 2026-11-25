@@ -218,7 +218,10 @@ Accepted as low risk: an approved name that points at your own public IP address
 - `redirector.gvt1.com` is Google, used by the editor engine's spellchecker to download dictionaries.
 - `raw.githubusercontent.com` is the download of Eclipse's list of known-malicious extensions, from the `extensions.excludeUnsafes` setting.
 
-Both are refused unless you approve them.
+- `redirector.gvt1.com` is **pre-blocked** (Project Manager decision). It's on a built-in block list (`BUILTIN_BLOCKED` in
+  `src/network/netpolicy.py`), refused silently with no pop-up, and shown in the websites window as "Blocked (built in)". Choosing **Allow**
+  there overrides it.
+- `raw.githubusercontent.com` asks as normal.
 
 ## Colour themes (Phase 3b)
 - `src/editor/theme/` is a tiny built-in extension with **Linux Studio Dark** and **Linux Studio Light**. It contains colour data only,

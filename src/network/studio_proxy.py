@@ -25,7 +25,7 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from netpolicy import ALLOWED_PORT, Store, is_public_ip, normalise_host  # noqa: E402
+from netpolicy import ALLOWED_PORT, Store, effective_status, is_public_ip, normalise_host  # noqa: E402
 
 HEADER_LIMIT = 8192        # bytes allowed in the CONNECT request
 HEADER_TIMEOUT = 10        # seconds to send the request
@@ -87,7 +87,7 @@ class Policy:
         data = self.store.load()
         if not data["network_enabled"]:
             return False
-        status = data["sites"].get(host, {}).get("status")
+        status = effective_status(data, host)
         if status == "blocked":
             return False
         if status == "allowed" or host in self.session_allowed:
@@ -97,7 +97,7 @@ class Policy:
             # Re-check: an answer may have arrived while we were waiting for the lock.
             if host in self.session_allowed:
                 return True
-            status = self.store.load()["sites"].get(host, {}).get("status")
+            status = effective_status(self.store.load(), host)
             if status in ("allowed", "blocked"):
                 return status == "allowed" and self.store.load()["network_enabled"]
             if self.block_new or host in self.session_denied:
@@ -130,7 +130,7 @@ class Policy:
         data = self.store.load()
         if not data["network_enabled"]:
             return False
-        status = data["sites"].get(host, {}).get("status")
+        status = effective_status(data, host)
         return status == "allowed" or (status is None and host in self.session_allowed)
 
     def touch(self, host):

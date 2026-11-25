@@ -37,6 +37,7 @@ check "Approved site works through the proxy"       "$(code https://example.com)
 check "Blocked site is refused"                     "$(code https://example.org)" '^000$'
 check "Unknown site refused (no screen = deny)"     "$(code https://www.wikipedia.org)" '^000$'
 check "Approval is exact: sub-address refused"      "$(code https://www.example.com)" '^000$'
+check "Google spellchecker address pre-blocked"   "$(code https://redirector.gvt1.com)" '^000$'
 check "Plain HTTP refused"                          "$(connect example.com:80)" '403'
 check "SSH port refused"                            "$(connect example.com:22)" '403'
 check "Loopback address refused"                    "$(connect 127.0.0.1:443)" '403'
@@ -50,6 +51,7 @@ check "Terminal tools use the proxy"                'echo "$HTTPS_PROXY $http_pr
 
 # Unknown site that was refused headless must NOT be saved as blocked.
 if jq -e '.sites["www.wikipedia.org"] == null' "$NET" >/dev/null; then echo "PASS  Headless refusal is not saved"; ((PASS++)); else echo "FAIL  Headless refusal is not saved"; ((FAIL++)); fi
+if jq -e '.sites["redirector.gvt1.com"] == null' "$NET" >/dev/null; then echo "PASS  Built-in block needs no saved entry"; ((PASS++)); else echo "FAIL  Built-in block needs no saved entry"; ((FAIL++)); fi
 # "Last used" recorded for the approved site.
 if jq -e '.sites["example.com"].last_used | length > 0' "$NET" >/dev/null; then echo "PASS  Last-used time recorded"; ((PASS++)); else echo "FAIL  Last-used time recorded"; ((FAIL++)); fi
 

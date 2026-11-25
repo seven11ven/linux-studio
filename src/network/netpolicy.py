@@ -18,6 +18,20 @@ from datetime import datetime, timezone
 
 ALLOWED_PORT = 443  # HTTPS only (Project Manager decision)
 
+# Addresses blocked from the start, without a pop-up (Project Manager decision, 2026-11-25).
+# They show in the websites window as "Blocked (built in)"; allowing one there overrides this list.
+BUILTIN_BLOCKED = {
+    "redirector.gvt1.com": "Google: the editor engine's spellchecker dictionary downloads",
+}
+
+
+def effective_status(data, host):
+    """'allowed', 'blocked' or None (unknown), taking the built-in block list into account."""
+    status = data["sites"].get(host, {}).get("status")
+    if status is None and host in BUILTIN_BLOCKED:
+        return "blocked"
+    return status
+
 _LABEL = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
 _HOST_RE = re.compile(rf"^(?=.{{1,253}}$){_LABEL}(?:\.{_LABEL})+$")
 

@@ -189,6 +189,16 @@ class Decisions(unittest.TestCase):
         self.store.set_network(False)
         self.assertFalse(p.still_allowed("a.com"))
 
+    def test_builtin_block_without_popup(self):
+        p = studio_proxy.Policy(self.store, "x")
+        p._ask = lambda h: self.fail("asked about a built-in blocked site")
+        self.assertFalse(p.allowed("redirector.gvt1.com"))
+        self.assertEqual(self.store.load()["sites"], {})       # nothing written
+        self.store.set_site("redirector.gvt1.com", "allowed")   # user override in the websites window
+        self.assertTrue(p.allowed("redirector.gvt1.com"))
+        self.store.remove_site("redirector.gvt1.com")
+        self.assertFalse(p.allowed("redirector.gvt1.com"))      # back to built-in block
+
     def test_store_writes_private_and_atomic(self):
         self.store.set_site("a.com", "allowed")
         self.assertEqual(oct(os.stat(self.path).st_mode & 0o777), "0o600")

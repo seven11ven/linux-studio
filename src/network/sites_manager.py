@@ -20,7 +20,7 @@ import gi  # noqa: E402
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
-from netpolicy import Store, normalise_host  # noqa: E402
+from netpolicy import BUILTIN_BLOCKED, Store, normalise_host  # noqa: E402
 from studio_theme import apply_theme  # noqa: E402
 
 
@@ -103,7 +103,10 @@ class SitesWindow(Gtk.ApplicationWindow):
             h = Gtk.Label(label=name, xalign=0)
             h.add_css_class("ls-header")
             self.grid.attach(h, col, 0, 1, 1)
-        sites = sorted(data["sites"].items())
+        sites = dict(data["sites"])
+        for host in BUILTIN_BLOCKED:                 # built-in blocks the user hasn't overridden
+            sites.setdefault(host, {"status": "blocked", "last_used": "", "builtin": True})
+        sites = sorted(sites.items())
         if not sites:
             empty = Gtk.Label(label="No websites yet. They appear here when you approve or block one.", xalign=0)
             empty.add_css_class("ls-muted")
@@ -112,7 +115,11 @@ class SitesWindow(Gtk.ApplicationWindow):
             name = Gtk.Label(label=host, xalign=0, hexpand=True, selectable=True)
             name.add_css_class("ls-domain-small")
             allowed = info["status"] == "allowed"
-            pill = Gtk.Label(label="Allowed" if allowed else "Blocked", halign=Gtk.Align.START)
+            builtin = info.get("builtin", False)
+            if builtin:
+                name.set_tooltip_text(BUILTIN_BLOCKED[host])
+            pill = Gtk.Label(label="Allowed" if allowed else ("Blocked (built in)" if builtin else "Blocked"),
+                             halign=Gtk.Align.START)
             pill.add_css_class("ls-pill-ok" if allowed else "ls-pill-bad")
             used = Gtk.Label(label=friendly_time(info["last_used"]), xalign=0)
             used.add_css_class("ls-muted")
@@ -123,7 +130,8 @@ class SitesWindow(Gtk.ApplicationWindow):
             rm.add_css_class("ls-danger")
             rm.connect("clicked", self.on_remove, host)
             btns.append(flip)
-            btns.append(rm)
+            if not builtin:                          # built-in entries can be allowed, not removed
+                btns.append(rm)
             for col, w in enumerate((name, pill, used, btns)):
                 self.grid.attach(w, col, row, 1, 1)
 

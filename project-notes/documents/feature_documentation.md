@@ -19,6 +19,7 @@ Status key: ✅ built and tested · 🚧 in progress · 📋 planned
 | Locked privacy settings | ✅ | Telemetry, updates, experiments and AI features are forced off at every launch. |
 | Workspace Trust | ✅ | Projects open in Restricted Mode until you trust them. In Restricted Mode, tasks, debugging, the terminal and some extensions ask for trust first. |
 | Linux Studio themes | ✅ | Dark and Light themes matching the design mockups. They follow your desktop's setting, and you can change them freely. All Linux Studio windows use the same colours. |
+| Built-in block list | ✅ | Known background addresses, currently Google's spellchecker download (`redirector.gvt1.com`), are blocked from the start with no pop-up. They're shown as "Blocked (built in)" and can be overridden. |
 | Wayland-only by default | ✅ | X11 desktops need `--allow-x11`, because on X11 sandboxed code could read the screen or type into other windows. |
 | Approved-websites proxy | ✅ | Extensions and terminal tools can reach only exact websites you approve, over HTTPS only. Your computer, home network and cloud metadata addresses are never reachable. No traffic is logged. |
 | Network approval pop-up | ✅ | A desktop pop-up asks Deny, Allow once, Always allow or Block all new sites. It shows one at a time, has a 1-second button delay, and treats no answer as deny. |
@@ -31,4 +32,4 @@ Status key: ✅ built and tested · 🚧 in progress · 📋 planned
 - Some unused Copilot code remains inside the editor's core files. It's switched off and can't reach any address.
 - Saved extension logins are stored obscured but not encrypted, in Linux Studio's private folder.
 - With `--allow-x11`, code inside Linux Studio could read your screen and type into your other windows. Wayland avoids this.
-- The editor engine tries to contact Google (`redirector.gvt1.com`, spellchecker dictionaries) at start-up. The proxy refuses it unless you approve it.
+- The editor engine tries to contact Google (`redirector.gvt1.com`, spellchecker dictionaries) at start-up. It's pre-blocked silently, and can be allowed in the websites window.

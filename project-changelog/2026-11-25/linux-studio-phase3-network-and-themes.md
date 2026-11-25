@@ -65,3 +65,13 @@
 ## Impacts
 - The official editor build must be re-run so it includes the theme extension; the local build was patched for testing.
 - No secrets or environment variables introduced.
+
+## Update 14:59 UTC: Google spellchecker address pre-blocked; dev branch
+
+- **Branch:** Phase 3 was committed and pushed to `main` (e3537f9). A `dev` branch was created from it. From now on, work is pushed to `dev` (PM decision).
+- **Built-in block list:** `BUILTIN_BLOCKED` in `netpolicy.py` blocks `redirector.gvt1.com` with no pop-up and nothing written to `network.json`.
+  The proxy uses `effective_status()`. The websites window shows it as "Blocked (built in)", with Allow only (no Remove).
+  Allowing it stores an explicit override, and removing that override restores the built-in block.
+- **Version control:** previous network modules are in `version-control/network/2026-11-25_1458/`.
+- **Tests:** unit 18/18 (new: built-in block, override, restore), network 23/23 (new: pre-blocked, no saved entry). The websites window was screenshot-checked.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
