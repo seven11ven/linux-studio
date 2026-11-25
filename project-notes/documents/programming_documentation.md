@@ -8,7 +8,7 @@ It's written so that you can understand and keep working on the project without 
 
 ## What Linux Studio is
 
-Linux Studio is a code editor (based on VSCodium, the open-source build of VS Code) that runs inside a
+Linux Studio is a code editor (built from Code - OSS, the open-source version of VS Code) that runs inside a
 **sandbox**. A sandbox is a locked room for a program: it can only see and touch what we put in the room.
 
 - The only real folder in the room is your **project folder**. Inside the app it's always called `/project-folder`.
@@ -28,32 +28,47 @@ Linux Studio is a code editor (based on VSCodium, the open-source build of VS Co
 | Proxy (`src/proxy/studio-proxy.py`) | Python (standard library only) | Lets traffic through only to approved websites | No extra downloads to trust, and the code is short enough to read in full |
 | Toolchains explorer (`src/toolchains-explorer/`) | Python + GTK4 | Window for downloading extra languages and compilers | GTK is the standard Linux desktop toolkit |
 
-## Building our own VSCodium (Phase 1b)
+## Building the editor (Phase 1c)
 
-**Why:** the official VSCodium download was older than a critical security fix (CVE-2026-120779). So we build VSCodium ourselves
-from a fixed VS Code release.
+**What we build:** "Code - OSS", the open-source version of VS Code that Microsoft publishes on GitHub (MIT licence), renamed to
+Linux Studio. We first tried building VSCodium, but VSCodium's privacy patches only fit an older VS Code (1.143.1) that has a
+critical security flaw (CVE-2026-120779). Code - OSS 1.148.0 has the fix.
 
-**Where it's built:** on GitHub's computers, using **GitHub Actions**. It's free for public repos, and VSCodium builds its own releases
-the same way. Our Codespace is too small for the build (it needs a lot of memory).
+**Is Code - OSS private?** Microsoft's telemetry only works when a secret tracking key is added to the app's settings file
+(`product.json`). Code - OSS doesn't include one, so it sends no Microsoft telemetry. We also strip out:
+- the Microsoft voice service address (`voiceWsUrl`)
+- the GitHub Copilot sign-in and usage addresses (`defaultChatAgent`)
+- the permission that lets Copilot use your logins (`trustedExtensionAuthAccess`)
+
+**⚠ Known limit:** Copilot (Microsoft's AI assistant) is woven into VS Code's build itself. We delete the Copilot extension folder,
+switch AI features off with locked settings (`chat.disableAIFeatures`), and the sandbox blocks every website you haven't approved.
+Some unused Copilot code still ships inside the app.
+
+**Where it's built:** on GitHub's computers, using **GitHub Actions** (free for public repos). Our Codespace is too small for the
+build, which needs about 8 GB of memory.
 
 **How it works, step by step:**
-1. `.github/workflows/build-vscodium.yml` is the recipe. Start it by hand from the repo's **Actions** tab ("Build VSCodium (patched)"
-   → Run workflow), or with `gh workflow run build-vscodium.yml`.
-2. **Compile job:** checks that the chosen VS Code version really matches its commit hash, downloads VSCodium's build scripts at a fixed,
-   reviewed version, downloads that VS Code source, removes Microsoft's telemetry and branding, and compiles it.
-3. **Package job:** turns the compiled code into a runnable app, packs it as `vscodium-<version>-linux-x64.tar.gz`, and writes
-   a `SHA256SUMS` fingerprint and a `build-info.json` record.
-4. On your machine, `scripts/fetch-vscodium.sh <run-id>` downloads the result, **checks the fingerprint** (it refuses to install
-   anything that doesn't match), and unpacks it into `build-cache/vscodium/<version>/`. That folder isn't saved in git because it's large.
-5. Copy `build-info.json` to `build/vscodium-version.json` and commit it. That's our permanent record of exactly what was built.
+1. `.github/workflows/build-editor.yml` is the recipe. Start it by hand from the repo's **Actions** tab ("Build Linux Studio editor"
+   → Run workflow), or with `gh workflow run build-editor.yml` from a terminal logged in as you.
+2. It checks that the chosen VS Code version really matches its commit hash, downloads that VS Code source, applies our settings from
+   `src/editor/product-overrides.json` (name, Open VSX extension store, removed Microsoft and Copilot addresses), deletes the Copilot
+   extension, and compiles everything.
+3. It packs the app as `linux-studio-editor-<version>-linux-x64.tar.gz`, with a `SHA256SUMS` fingerprint and a `build-info.json` record.
+4. On your machine, `scripts/fetch-editor.sh <run-id>` downloads the result, **checks the fingerprint** (it refuses to install anything
+   that doesn't match), and unpacks it into `build-cache/editor/<version>/`. That folder isn't saved in git because it's large.
+5. Copy `build-info.json` to `build/editor-version.json` and commit it. That's our permanent record of exactly what was built.
+
+**Locked settings:** `src/editor/default-settings.json` lists the privacy settings the launcher will force on every start
+(telemetry off, updates off, AI off, built-in file dialog, proxy, and the terminal starting in `/project-folder`).
 
 **Safety measures in the recipe:** it only runs when started by hand, has read-only permissions, uses no stored secrets, pins every
 external piece to an exact fingerprint, and publishes nothing publicly. The build is kept for 7 days as a download on the run's page.
 
 **To update to a newer VS Code later:** find the new tag's commit hash with
 `git ls-remote https://github.com/microsoft/vscode refs/tags/<tag>`, run the workflow with both values, and keep the old build in
-`/version-control/vscodium/<date>/`. If VSCodium's patches fail on a very new VS Code version, use the newest version that works,
-as long as it's at least 1.145.3.
+`/version-control/editor/<date>/`.
+
+**History:** the earlier VSCodium-based recipe is backed up in `version-control/build-workflow/2026-11-25_1305/`.
 
 No API keys, webhooks or secrets are used. If any are ever added, they'll be explained here and listed in `/.env_example`.
 

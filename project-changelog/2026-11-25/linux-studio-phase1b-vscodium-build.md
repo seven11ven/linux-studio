@@ -25,3 +25,14 @@
   may not apply cleanly to 1.148.0. If they don't, rerun with 1.145.3 (`dcd3ad6e368fbe19d03f37054a40dbaf40d676f4`).
 - No version-control backup needed: these are new components and nothing was replaced.
 - No secrets or environment variables introduced.
+
+## Update 13:00 UTC: first build run failed
+
+- **Run:** 45618050509 (VS Code 1.148.0). Failed in the "Compile" step.
+- **Cause:** VSCodium's `patches/52-ext-copilot-remove-it.json` removes Copilot, AI-agent and telemetry code using a fixed list of paths written
+  for VS Code 1.143.1. The path `src/vs/sessions/services/agentHost/test/browser/agentHostCustomizationService.test.ts` doesn't exist in 1.148.0,
+  and the script stops on purpose when a path is missing.
+- **Decision:** the check was not bypassed, because skipping missing paths could leave Copilot or telemetry code in the build. The next step is to
+  rerun with VS Code 1.145.3 (`dcd3ad6e368fbe19d03f37054a40dbaf40d676f4`), the plan's approved fallback. The Project Manager must start it,
+  because the Codespace's token can't start workflows.
+- **Performed By:** Claude Opus 5.5 (Anthropic) (diagnosis) · **Approved By:** Project Manager (fallback approved in plan)

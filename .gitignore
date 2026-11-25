@@ -22,11 +22,11 @@ build-cache/
 project-builds/dev-builds/
 project-builds/release-builds/
 
-# Version-control backups: binaries ignored, manifests (*.json, *.md) kept
-version-control/**/*
-!version-control/**/
-!version-control/**/*.json
-!version-control/**/*.md
+# Version-control backups: text files (scripts, configs, manifests) are kept;
+# large binaries are ignored by the archive/package patterns above plus these:
+version-control/**/app/
+version-control/**/*.bin
+version-control/**/*.so
 
 # Runtime state
 __pycache__/
