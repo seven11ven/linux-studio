@@ -1,0 +1,8 @@
+# Aider: always load project rules into context (read-only)
+read:
+  - AGENTS.md
+  - CONVENTIONS.md
+  - guidelines/Security.md
+  - guidelines/Implementation.md
+  - guidelines/Documentation.md
+  - guidelines/Linux-Packaging.md
