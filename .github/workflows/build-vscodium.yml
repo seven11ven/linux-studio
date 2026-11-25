@@ -1,0 +1,173 @@
+# Builds a patched VSCodium (Linux x64) from a chosen, security-fixed VS Code release.
+# Why: the official VSCodium release was older than the fix for CVE-2026-120779.
+# Plain-language explanation: project-notes/documents/programming_documentation.md
+#
+# Security notes:
+# - Runs only when started by hand (workflow_dispatch).
+# - Token is read-only (contents: read); no repository secrets are used.
+# - VSCodium's build scripts, every action and the container image are pinned to exact hashes.
+# - Nothing is published; the result is a workflow artifact kept for 7 days.
+
+name: Build VSCodium (patched)
+
+on:
+  workflow_dispatch:
+    inputs:
+      vscode_tag:
+        description: "VS Code release tag (e.g. 1.148.0)"
+        required: true
+        default: "1.148.0"
+      vscode_commit:
+        description: "Full commit hash of that tag (checked against GitHub before building)"
+        required: true
+        default: "661626d0e72f97806550790a98fb87116c9db825"
+
+permissions:
+  contents: read
+
+env:
+  # VSCodium build scripts, reviewed 2026-11-25 (master, 27 Oct 2026).
+  VSCODIUM_REF: ca7f7b44b5e5c3faa663f6cdc043998f71936653
+  APP_NAME: VSCodium
+  BINARY_NAME: codium
+  DISABLE_UPDATE: "yes"
+  GH_REPO_PATH: VSCodium/vscodium
+  ORG_NAME: VSCodium
+  OS_NAME: linux
+  VSCODE_QUALITY: stable
+  VSCODE_ARCH: x64
+  CI_BUILD: "yes"
+
+jobs:
+  compile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    outputs:
+      RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+      BUILD_SOURCEVERSION: ${{ env.BUILD_SOURCEVERSION }}
+    steps:
+      - name: Check inputs
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: |
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Bad tag format: $TAG"; exit 1; }
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "Bad commit format"; exit 1; }
+          REAL=$(git ls-remote https://github.com/microsoft/vscode "refs/tags/$TAG" | cut -f1)
+          [[ "$REAL" == "$COMMIT" ]] || { echo "Tag $TAG points to $REAL, not $COMMIT"; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: VSCodium/vscodium
+          ref: ${{ env.VSCODIUM_REF }}
+          persist-credentials: false
+
+      - name: Pin VS Code version
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: jq -n --arg t "$TAG" --arg c "$COMMIT" '{tag:$t, commit:$c}' > upstream/stable.json
+
+      - name: Setup GCC
+        uses: egor-tensin/setup-gcc@a2861a8b8538f49cf2850980acccf6b05a1b2ae4 # v2.0
+        with:
+          version: 10
+          platform: x64
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Setup Python 3
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install libkrb5-dev
+        run: sudo apt-get update -y && sudo apt-get install -y libkrb5-dev
+
+      - name: Clone VS Code source
+        run: ./get_repo.sh
+
+      - name: Compile
+        env:
+          SHOULD_BUILD: "yes"
+          SHOULD_BUILD_REH: "no"
+          SHOULD_BUILD_REH_WEB: "no"
+        run: ./build.sh
+
+      - name: Compress compiled source
+        run: |
+          find vscode -type f -not -path "*/node_modules/*" -not -path "vscode/.build/node/*" -not -path "vscode/.git/*" > vscode.txt
+          echo "vscode/.build/extensions/node_modules" >> vscode.txt
+          echo "vscode/.git" >> vscode.txt
+          tar -czf vscode.tar.gz -T vscode.txt
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vscode-compiled
+          path: ./vscode.tar.gz
+          retention-days: 1
+
+  package:
+    needs: compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      RELEASE_VERSION: ${{ needs.compile.outputs.RELEASE_VERSION }}
+      BUILD_SOURCEVERSION: ${{ needs.compile.outputs.BUILD_SOURCEVERSION }}
+      MS_TAG: ${{ inputs.vscode_tag }}
+      MS_COMMIT: ${{ inputs.vscode_commit }}
+    container:
+      image: vscodium/vscodium-linux-build-agent@sha256:749fafee34edc43c2702ed2509be1a544d0c1d45b06134ebf51abffb1ddc2a3a # focal-x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: VSCodium/vscodium
+          ref: ${{ env.VSCODIUM_REF }}
+          persist-credentials: false
+
+      - name: Pin VS Code version
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: jq -n --arg t "$TAG" --arg c "$COMMIT" '{tag:$t, commit:$c}' > upstream/stable.json
+
+      - name: Install GH
+        run: ./build/linux/install_gh.sh
+
+      - name: Install dependencies
+        run: ./build/linux/deps.sh
+
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: vscode-compiled
+
+      - name: Package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          npm_config_arch: x64
+        run: ./build/linux/package_bin.sh
+
+      - name: Archive and checksum
+        env:
+          TAG: ${{ inputs.vscode_tag }}
+          COMMIT: ${{ inputs.vscode_commit }}
+        run: |
+          mkdir -p out
+          NAME="vscodium-${TAG}-linux-x64.tar.gz"
+          tar -czf "out/$NAME" -C VSCode-linux-x64 .
+          (cd out && sha256sum "$NAME" > SHA256SUMS)
+          jq -n --arg t "$TAG" --arg c "$COMMIT" --arg v "$VSCODIUM_REF" --arg r "$GITHUB_RUN_ID" \
+            --arg s "$(cut -d' ' -f1 out/SHA256SUMS)" \
+            '{vscode_tag:$t, vscode_commit:$c, vscodium_ref:$v, run_id:$r, sha256:$s}' > out/build-info.json
+          cat out/SHA256SUMS out/build-info.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vscodium-linux-x64
+          path: out/
+          retention-days: 7

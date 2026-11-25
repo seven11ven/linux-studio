@@ -1,0 +1,33 @@
+# The ONLY .gitignore in this repo (see guidelines/Security.md). Keep it up to date.
+
+# Secrets and environment files: never commit
+.env
+.env.*
+!.env_example
+*.pem
+*.key
+
+# Downloaded / built components (large binaries)
+build-cache/
+*.tar.gz
+*.tar.zst
+*.AppImage
+*.deb
+*.rpm
+*.apk
+*.snap
+*.flatpak
+
+# Build outputs: binaries ignored, logs and summaries kept
+project-builds/dev-builds/
+project-builds/release-builds/
+
+# Version-control backups: binaries ignored, manifests (*.json, *.md) kept
+version-control/**/*
+!version-control/**/
+!version-control/**/*.json
+!version-control/**/*.md
+
+# Runtime state
+__pycache__/
+*.pyc
