@@ -41,8 +41,6 @@
 
 ## Not verified / open items
 
-- The prompt was checked in an interactive bash inside the sandbox, not by typing in the editor's own terminal panel.
-  That needs keyboard automation (`xdotool`), or a manual check on the Project Manager's machine.
 - Wayland was not tested; the Codespace only has X11 (Xvfb).
 - Test environment needed sudo installs by the Project Manager: `mmdebstrap uidmap xvfb imagemagick jq python3-gi gir1.2-gtk-4.0 debian-archive-keyring`.
 
@@ -51,3 +49,30 @@
 - Linux Studio now runs locked to a single folder, with no network and a fake identity.
 - The next CI editor build must be run so the `defaultChatAgent` fix is part of the official build (the local build was patched for testing).
 - No secrets or environment variables introduced. Large outputs (`build-cache/`) are ignored by git.
+
+## Update 14:25 UTC: editor terminal panel tested with xdotool
+
+- `xdotool` was installed by the Project Manager (root command).
+- **Result:** the terminal panel inside the editor opens at `project-folder $`. After `cd apples` the prompt is `project-folder/apples $`.
+  `pwd` gives `/project-folder/apples`, `hostname` gives `studio`, and `whoami` gives `user`. `ls /` shows only sandbox folders, and `~` is empty.
+- **Note:** `pwd` prints the real path inside the sandbox, `/project-folder/apples`, with a leading slash. The prompt hides the slash, but `pwd` is
+  left unchanged so scripts keep working.
+- **Workspace Trust finding:** during the test the folder became trusted, because a simulated Enter keypress answered the first-open
+  "Do you trust the authors?" pop-up, whose default button is "Trust". This came from the test automation, not a sandbox flaw. The earlier
+  launch without keystrokes showed Restricted Mode. Suggested to the Project Manager: lock `security.workspace.trust.startupPrompt` to
+  `"never"`, so folders always open in Restricted Mode and trust must be granted on purpose.
+- **Cleanup:** editor, bwrap and Xvfb stopped (0 left); test config, data and project folders deleted.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 14:33 UTC: official build with defaultChatAgent fix verified
+
+- **Run:** 45633090731 succeeded. The locally patched test build was moved to `version-control/editor/2026-11-25_1431/` (`app/` ignored by git).
+- **New build verified:**
+  - SHA256 OK; telemetry check passed
+  - `defaultChatAgent` addresses are all `https://0.0.0.0`; the voice and auth-sharing entries are absent
+  - no Copilot extension or SDK
+  - all `product.json` checksums match
+- **Smoke launch** under Xvfb with no keystrokes: the editor opens on `project-folder` in **Restricted Mode**, with no onboarding crash.
+  Everything was closed afterwards (0 processes left) and test data deleted.
+- `build/editor-version.json` updated to this build.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
