@@ -17,16 +17,12 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
+from studio_theme import apply_theme  # noqa: E402
+
 APP_ID = "io.github.seven11ven.linuxstudio.FirstRun"
 DEFAULT_FOLDER = "~/LinuxStudio/project-folder"
 
-CSS = b"""
-.ls-title { font-size: 1.35em; font-weight: 600; }
-.ls-hint { opacity: 0.72; }
-.ls-note { background: alpha(#1f7a5c, 0.14); border-radius: 6px; padding: 10px 12px; }
-.ls-term { background: #0f1513; color: #cfe3da; font-family: monospace; border-radius: 6px; padding: 10px 12px; }
-.ls-error { color: #b3261e; }
-"""
 
 
 class FirstRunWindow(Gtk.ApplicationWindow):
@@ -47,7 +43,7 @@ class FirstRunWindow(Gtk.ApplicationWindow):
         hint = Gtk.Label(xalign=0, wrap=True)
         hint.set_markup("Linux Studio can only see this one folder. Inside the app it always appears as "
                         "<tt>project-folder</tt>.")
-        hint.add_css_class("ls-hint")
+        hint.add_css_class("ls-muted")
         box.append(title)
         box.append(hint)
 
@@ -62,7 +58,7 @@ class FirstRunWindow(Gtk.ApplicationWindow):
         row.append(browse)
         tip = Gtk.Label(xalign=0, wrap=True)
         tip.set_markup("You can change this later with <tt>linux-studio --set-project-folder</tt>.")
-        tip.add_css_class("ls-hint")
+        tip.add_css_class("ls-muted")
         for w in (label, row, tip):
             box.append(w)
 
@@ -88,7 +84,7 @@ class FirstRunWindow(Gtk.ApplicationWindow):
         quit_btn = Gtk.Button(label="Quit")
         quit_btn.connect("clicked", lambda *_: self.close())
         create = Gtk.Button(label="Create folder and open Linux Studio")
-        create.add_css_class("suggested-action")
+        create.add_css_class("ls-primary")
         create.connect("clicked", self.on_create)
         actions.append(quit_btn)
         actions.append(create)
@@ -127,15 +123,12 @@ def main():
     if len(sys.argv) != 2 or not os.access(sys.argv[1], os.X_OK):
         print("Usage: first_run.py <path-to-linux-studio-launcher>", file=sys.stderr)
         return 2
-    provider = Gtk.CssProvider()
-    provider.load_from_data(CSS)
     app = Gtk.Application(application_id=APP_ID, flags=Gio.ApplicationFlags.NON_UNIQUE)
     state = {}
 
     def on_activate(application):
         win = FirstRunWindow(application, sys.argv[1])
-        Gtk.StyleContext.add_provider_for_display(win.get_display(), provider,
-                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        apply_theme(win)
         state["win"] = win
         win.present()
 

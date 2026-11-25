@@ -104,7 +104,9 @@ This is what you run. Step by step:
    and Linux Studio's own settings folders.
 3. **Creates a fake identity for this launch** in a temporary folder that's deleted when the editor closes:
    computer name `studio`, user `user`, and a new random machine ID every time.
-4. **Re-applies the locked privacy settings** from `src/editor/default-settings.json` on top of your own settings, so they can't be switched off.
+4. **Prepares the settings.** The settings are now written *inside* the sandbox by `src/launcher/apply_settings.py`
+   (security review fix, see Phase 3). It keeps your own settings, fills in starting choices from `src/editor/initial-settings.json`
+   (such as the theme) only where you haven't chosen, and always re-applies the locked privacy settings from `src/editor/default-settings.json`.
 5. **Builds the sandbox with bubblewrap.** Inside, the editor sees only:
    - the mini-Linux, read-only
    - the editor, read-only, at `/app`
@@ -112,8 +114,8 @@ This is what you run. Step by step:
    - your project folder at `/project-folder`
 
    It has no network, no `/sys`, no special permissions ("capabilities"), and no graphics card unless you use `--gpu`.
-6. **Connects the window to your screen.** Wayland is used first. X11 is a fallback and prints a warning, because other X11 programs can
-   peek at windows.
+6. **Connects the window to your screen.** It uses Wayland. On X11-only desktops it **refuses to start** unless you add `--allow-x11`,
+   because on X11 code inside the sandbox could read your screen and type into your other windows.
 
 Useful commands:
 - `linux-studio --set-project-folder ~/Code/my-project`: change the project folder.
@@ -148,6 +150,81 @@ It checks:
 - files you make appear in the real project folder
 - the machine ID changes every launch
 - temporary files are cleaned up, and unsafe folders are refused
+
+## Approved-websites network (Phase 3)
+
+Linux Studio's sandbox has no network of its own. Its **only** way to the internet is a gatekeeper program, the **proxy**, which runs on
+your real computer and lets through only websites you've approved.
+
+### How a connection travels
+1. A program inside, such as an extension or `pip` in the terminal, connects to `127.0.0.1:3128`. That's the address the sandbox's proxy
+   settings (`HTTPS_PROXY` and similar) point to.
+2. **`src/network/net_bridge.py`** (inside the sandbox) passes it through a special file, a "unix socket", to the proxy outside.
+   The bridge makes no decisions.
+3. **`src/network/studio_proxy.py`** (outside) checks the request:
+   - Only **`CONNECT <site>:443`** (HTTPS) is accepted. Plain HTTP, other ports, IP addresses and odd names are refused.
+   - **Network off** means refuse. A **blocked** site means refuse. An **allowed** site goes ahead.
+   - An **unknown** site shows the **approval pop-up**. No answer, or no screen, means refuse.
+   - It looks up the site's address itself and **refuses private, loopback, link-local and reserved addresses**, including ones wrapped
+     inside IPv6. So the sandbox can never reach your computer, your home network or cloud "metadata" services. It then connects to
+     exactly the address it checked.
+   - It passes the encrypted data through **without reading it**, and keeps **no log** of traffic. It only stores each site's "last used" time.
+   - Open connections re-check the rules every 5 seconds, so blocking a site or turning the network off closes them.
+4. There's no address lookup (DNS) inside the sandbox at all: `/etc/resolv.conf` is empty.
+
+### Your list of websites: `~/.config/linux-studio/network.json`
+- Stored on your real computer and **never visible inside the sandbox**. Each entry is one **exact** address (approving `api.anthropic.com`
+  doesn't approve `www.anthropic.com`), marked Allowed or Blocked. There's also a network on/off switch.
+- Saved safely: a lock plus whole-file replacement, readable only by you. A damaged file is treated as "network off".
+- Shared rules live in **`src/network/netpolicy.py`**.
+
+### The windows (GTK4, on your desktop, outside the sandbox)
+- **Approval pop-up** (`src/network/approval_prompt.py`):
+  - The buttons are **Deny** (the site is saved as blocked), **Allow once** (until you close Linux Studio), **Always allow** (saved),
+    and **Block all new sites until restart**.
+  - **Safety:**
+    - Buttons are disabled for 1 second, and Enter does nothing.
+    - Site names never wrap, so a name can't look like a different one.
+    - Only one pop-up is shown at a time.
+    - Closing it, or giving no answer within 60 s, refuses that site until restart.
+    - More than 3 new sites waiting at once are refused straight away.
+- **Approved websites** (`src/network/sites_manager.py`, opened with `linux-studio --network`): add, block, allow or remove sites,
+  and turn the whole network off or on. Changes apply immediately, even while Linux Studio is running.
+- All Linux Studio windows share the mockup colours from **`src/common/studio_theme.py`**.
+
+### Security review (2026-11-25)
+The project's security agent (jake-lockley) reviewed the network code and launcher. These were fixed:
+- **High:** the launcher used to edit the sandbox's `settings.json` from outside, so a planted link could read or overwrite your real
+  files. Settings are now written inside the sandbox, and a test with a planted link confirmed the real file stayed untouched.
+- Hex-style addresses (`0x8.0x8.0x8.0x8`) slipping past the "names only" rule.
+- IPv6 addresses wrapping private IPv4 addresses (NAT64) counting as public.
+- Pop-up flooding, and pop-up mis-clicks.
+- Odd characters in the port number causing error output.
+- Connections that could hang forever.
+- Open connections surviving a block.
+- X11 keystroke-injection risk, now refused unless you opt in with `--allow-x11`.
+
+Accepted as low risk: an approved name that points at your own public IP address.
+
+### Tests
+- `python3 tests/test_proxy.py`: 17 unit tests.
+- `tests/network-test.sh --runtime-dir <rootfs>`: 21 end-to-end checks. This needs internet on the host.
+
+### What it can't hide
+- Approved sites see your **public IP address**, and whatever the program itself sends inside the encrypted connection, such as login tokens.
+- Extensions share one connection, so approval is per website, not per extension.
+
+### Known background connections seen in testing
+- `redirector.gvt1.com` is Google, used by the editor engine's spellchecker to download dictionaries.
+- `raw.githubusercontent.com` is the download of Eclipse's list of known-malicious extensions, from the `extensions.excludeUnsafes` setting.
+
+Both are refused unless you approve them.
+
+## Colour themes (Phase 3b)
+- `src/editor/theme/` is a tiny built-in extension with **Linux Studio Dark** and **Linux Studio Light**. It contains colour data only,
+  with no code, and is generated from the mockups' palette by `scripts/make-themes.py`.
+- `src/editor/initial-settings.json` makes the editor follow your desktop's light or dark setting. Pick another theme any time; your choice is kept.
+- The build recipe copies the themes into the finished app and checks that they contain no code.
 
 ## Phase 1 research results (2026-11-25)
 
