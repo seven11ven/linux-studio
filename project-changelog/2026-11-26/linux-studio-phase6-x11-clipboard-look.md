@@ -83,3 +83,12 @@ Also verified: the reviewer was right that several `-extension` flags work toget
   and the Phase 5 changelog.
 - **Planned:** Phase 7, game and software developer support starting with Unity. It comes after the Claude Code test, at the PM's request.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 07:50 UTC: dev2-2 delivered to the PM
+- A temporary download page in the scratchpad (not in the repo) on private Codespaces port 8765. It served only the dev2-2 package at a random link and closed itself after one complete download. The port has been confirmed closed.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 07:52 UTC: dev2-2 real-machine self-test passed
+- The PM installed dev2-2 on Linux Mint (X11). `linux-studio --self-test`: **10/10 passed**, including the private X11 display checks.
+- **Next:** the PM opens the editor from the menu and tries pasting, then the Claude Code compatibility test.
+- **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager

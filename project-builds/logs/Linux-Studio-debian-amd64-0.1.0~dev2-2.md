@@ -33,3 +33,11 @@
 
   These are kept unmodified on purpose, because changing upstream files would make the runtime harder to verify against Debian.
 - **Not yet run:** the PM's real machine test (Linux Mint, X11): `--self-test` and the editor in its private window.
+
+## Real-machine test (PM, Linux Mint, X11, 07:52 UTC)
+- Downloaded through a one-time private link (closed after the download), installed with `apt`, then ran `linux-studio --self-test`.
+- **Result: 10 passed, 0 failed.** Sandbox, fake name and user, home hidden, loopback only, no direct internet, proxy bridge, and the three new X11 checks:
+  only the private display is visible, it's running, and XTEST is absent.
+- **INFO:** inner sandboxes are off, as expected under the restricted AppArmor design.
+- apt printed its usual notice that it read the local .deb as root, because its `_apt` user can't read a private home folder. This is harmless.
+- **Still to confirm:** the editor opens in its "Linux Studio" window from the menu, and pasting with Ctrl+V works.
