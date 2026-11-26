@@ -23,6 +23,8 @@ PACKAGES=(
   python3 python3-pip python3-venv nodejs npm gcc g++ clang make cmake
   # fonts
   fonts-dejavu-core
+  fonts-noto-core
+  fonts-noto-cjk
   # libraries the editor (Electron) needs; confirmed with ldd after building
   libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxkbfile1 libsecret-1-0 libxss1 libdrm2
   libxshmfence1 libatk-bridge2.0-0t64 libcups2t64 libx11-xcb1 libxcomposite1 libxdamage1

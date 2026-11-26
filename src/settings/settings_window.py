@@ -14,7 +14,7 @@ import sys
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "common"))
 from studio_theme import apply_theme  # noqa: E402
@@ -51,14 +51,16 @@ class SettingsWindow(Gtk.ApplicationWindow):
     def __init__(self, app, launcher):
         super().__init__(application=app, title="Linux Studio · Settings")
         self.launcher = launcher
-        self.set_default_size(620, -1)
-        self.set_resizable(False)
+        self.set_default_size(640, 760)   # fits a 1080p screen; the content scrolls when it's taller
+        self.set_size_request(560, 420)
         apply_theme(self)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         for side in ("top", "bottom", "start", "end"):
             getattr(box, f"set_margin_{side}")(22)
-        self.set_child(box)
+        scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
+        scroller.set_child(box)
+        self.set_child(scroller)
         title = Gtk.Label(label="Settings", xalign=0)
         title.add_css_class("ls-title")
         box.append(title)
@@ -131,6 +133,33 @@ class SettingsWindow(Gtk.ApplicationWindow):
         grid.attach(v2, 1, 1, 1, 1)
         box.append(grid)
 
+        # CPU and memory
+        box.append(self.section("CPU and memory"))
+        res = dict(line.split("=", 1) for line in self.run("--get-resources").splitlines() if "=" in line)
+        tc, tm = int(res.get("total_cores", "1")), int(res.get("total_memory_gb", "1"))
+        dc, dm = int(res.get("default_cores", "1")), int(res.get("default_memory_gb", "1"))
+        self.mem_supported = res.get("memory_limit_supported") == "yes"
+        info = Gtk.Label(xalign=0, label=f"This computer: {tc} CPU cores, {tm} GB memory.")
+        info.add_css_class("ls-muted")
+        box.append(info)
+        self.core_opts = [("all", f"All {tc} cores")]
+        if tc > 1:
+            self.core_opts.append(("default", f"{dc} cores (default: all but one)"))
+        for n in sorted({tc - 2, tc // 2, tc // 4, 2, 1}, reverse=True):
+            if 1 <= n < dc and str(n) not in [k for k, _l in self.core_opts]:
+                self.core_opts.append((str(n), f"{n} core" + ("s" if n > 1 else "")))
+        self.mem_opts = [("none", "No limit"), ("default", f"{dm} GB (default: 75%)")]
+        for g in sorted({tm // 2, tm // 4, 2, 1}, reverse=True):
+            if 1 <= g < dm and str(g) not in [k for k, _l in self.mem_opts]:
+                self.mem_opts.append((str(g), f"{g} GB"))
+        self.cpu_pick = self.choice_row(box, "CPU cores", self.core_opts, res.get("cores_setting", "default"), "cores")
+        self.mem_pick = self.choice_row(box, "Memory limit", self.mem_opts, res.get("memory_setting", "default"), "GB")
+        self.res_note = Gtk.Label(xalign=0, wrap=True)
+        box.append(self.res_note)
+        self.show_res_note()
+        self.cpu_pick.connect("notify::selected", self.on_res, "--set-cpu-cores", self.core_opts)
+        self.mem_pick.connect("notify::selected", self.on_res, "--set-memory-limit", self.mem_opts)
+
         # More
         box.append(self.section("More"))
         more = Gtk.Box(spacing=8)
@@ -145,32 +174,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.rm_open = Gtk.Button(label="Remove my Linux Studio data…", halign=Gtk.Align.START)
         self.rm_open.add_css_class("ls-danger")
         box.append(self.rm_open)
-        self.rm_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, visible=False)
-        self.rm_card.add_css_class("ls-note-warn")
-        head = Gtk.Label(label="Remove your Linux Studio data?", xalign=0)
-        head.add_css_class("ls-subtitle")
-        self.rm_card.append(head)
-        self.rm_card.append(Gtk.Label(xalign=0, wrap=True, label="Close Linux Studio first. Choose what to delete from "
-                                      "this computer. This can't be undone."))
-        self.rm_parts = {}
-        for key, label, default in (("extensions", "Extensions, editor settings and logins (for example Claude's)", True),
-                                    ("toolchains", "Toolchains you installed", True),
-                                    ("settings", "My Settings choices and approved websites", False)):
-            c = Gtk.CheckButton(label=label, active=default)
-            self.rm_parts[key] = c
-            self.rm_card.append(c)
-        self.rm_card.append(Gtk.Label(xalign=0, wrap=True, label="Your project folder is never touched."))
-        ract = Gtk.Box(spacing=8, halign=Gtk.Align.END)
-        cancel = Gtk.Button(label="Cancel")
-        self.rm_go = Gtk.Button(label="Remove selected")
-        self.rm_go.add_css_class("ls-danger")
-        ract.append(cancel)
-        ract.append(self.rm_go)
-        self.rm_card.append(ract)
-        box.append(self.rm_card)
-        self.rm_open.connect("clicked", lambda _b: self.rm_card.set_visible(True))
-        cancel.connect("clicked", lambda _b: self.rm_card.set_visible(False))
-        self.rm_go.connect("clicked", self.on_remove)
+        self.rm_open.connect("clicked", self.open_remove_dialog)
 
         hint = Gtk.Label(xalign=0, wrap=True, label="Saved outside the sandbox, so nothing inside Linux Studio can change "
                          "these settings. Clipboard changes apply immediately; the signature setting applies the "
@@ -198,6 +202,42 @@ class SettingsWindow(Gtk.ApplicationWindow):
         self.note.remove_css_class("ls-note-warn")
         self.note.add_css_class("ls-note-warn" if mode == "both" else "ls-note")
 
+    def choice_row(self, box, label, opts, current, unit):
+        if current not in [k for k, _l in opts]:   # a value saved earlier that isn't in the list: show it too
+            opts.append((current, f"{current} {unit}"))
+        row = Gtk.Box(spacing=10)
+        lab = Gtk.Label(label=label, xalign=0)
+        lab.set_size_request(130, -1)
+        row.append(lab)
+        pick = Gtk.DropDown.new_from_strings([l for _k, l in opts])
+        pick.set_selected([k for k, _l in opts].index(current))
+        row.append(pick)
+        box.append(row)
+        return pick
+
+    def show_res_note(self):
+        text = ("Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in "
+                "its terminal. Programs inside see only the cores you allow, so builds don't try to use more. Applies the "
+                "next time Linux Studio starts.")
+        mem_key = self.mem_opts[self.mem_pick.get_selected()][0]
+        limited = mem_key != "none"
+        if limited:
+            text += (f" ⚠ With a memory limit, if Linux Studio needs more than {self.mem_opts[self.mem_pick.get_selected()][1].split(' (')[0]}, "
+                     "the biggest program inside it (often a build or an extension) is stopped. Save your work often.")
+            if not self.mem_supported:
+                text += (" This computer can't enforce a memory limit right now (it needs systemd's user session), so "
+                         "Linux Studio will start without one.")
+        self.res_note.set_text(text)
+        for c in ("ls-note", "ls-note-warn"):
+            self.res_note.remove_css_class(c)
+        self.res_note.add_css_class("ls-note-warn" if limited else "ls-note")
+
+    def on_res(self, dropdown, _pspec, option, opts):
+        self.error.add_css_class("ls-error")
+        self.error.set_text("")
+        self.run(option, opts[dropdown.get_selected()][0])
+        self.show_res_note()
+
     def show_sig_note(self, mode):
         self.sig_note.set_text(SIG_NOTES[mode])
         self.sig_note.remove_css_class("ls-note")
@@ -217,22 +257,62 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self.run("--set-extension-signatures", mode)
             self.show_sig_note(mode)
 
-    def on_remove(self, _button):
-        self.error.add_css_class("ls-error")
-        self.error.set_text("")
+    def open_remove_dialog(self, _button):
+        """The "Are you sure?" confirmation, as its own pop-up window in front of Settings (PM decision)."""
+        dlg = Gtk.Window(title="Linux Studio · Remove your data", transient_for=self, modal=True, resizable=False)
+        dlg.set_default_size(480, -1)
+        apply_theme(dlg)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        for side in ("top", "bottom", "start", "end"):
+            getattr(box, f"set_margin_{side}")(20)
+        dlg.set_child(box)
+        pill = Gtk.Label(label="Can't be undone", halign=Gtk.Align.START)
+        pill.add_css_class("ls-pill-warn")
+        box.append(pill)
+        head = Gtk.Label(label="Are you sure you want to remove your Linux Studio data?", xalign=0, wrap=True)
+        head.add_css_class("ls-subtitle")
+        box.append(head)
+        box.append(Gtk.Label(xalign=0, wrap=True, label="Close Linux Studio first. Choose what to delete from this computer."))
+        self.rm_parts = {}
+        for key, label, default in (("extensions", "Extensions, editor settings and logins (for example Claude's)", True),
+                                    ("toolchains", "Toolchains you installed", True),
+                                    ("settings", "My Settings choices and approved websites", False)):
+            c = Gtk.CheckButton(label=label, active=default)
+            self.rm_parts[key] = c
+            box.append(c)
+        box.append(Gtk.Label(xalign=0, wrap=True, label="Your project folder is never touched."))
+        self.rm_msg = Gtk.Label(xalign=0, wrap=True)
+        self.rm_msg.add_css_class("ls-error")
+        box.append(self.rm_msg)
+        actions = Gtk.Box(spacing=8, halign=Gtk.Align.END)
+        cancel = Gtk.Button(label="Cancel")
+        go = Gtk.Button(label="Remove selected", sensitive=False)   # unlocks after 1 second, so a stray click can't delete
+        go.add_css_class("ls-danger")
+        actions.append(cancel)
+        actions.append(go)
+        box.append(actions)
+        cancel.connect("clicked", lambda _b: dlg.close())
+        go.connect("clicked", self.on_remove, dlg)
+        dlg.set_default_widget(cancel)   # Enter cancels
+        cancel.grab_focus()
+        GLib.timeout_add(1000, lambda: go.set_sensitive(True) or False)
+        dlg.present()
+
+    def on_remove(self, _button, dlg):
+        self.rm_msg.set_text("")
         parts = [k for k, c in self.rm_parts.items() if c.get_active()]
         if not parts:
-            self.error.set_text("Nothing selected, so nothing was removed.")
+            self.rm_msg.set_text("Nothing selected, so nothing was removed.")
             return
         if self.run("--is-running").strip() == "yes":
-            self.error.set_text("Linux Studio is still open. Close it (and the Toolchains window) first, then try again.")
+            self.rm_msg.set_text("Linux Studio is still open. Close it (and the Toolchains window) first, then try again.")
             return
         p = subprocess.run([self.launcher, "--remove-my-data-now", ",".join(parts)],
                            capture_output=True, text=True, check=False)
         if p.returncode != 0:
-            self.error.set_text(p.stderr.strip().removeprefix("linux-studio: ") or "Couldn't remove the data.")
+            self.rm_msg.set_text(p.stderr.strip().removeprefix("linux-studio: ") or "Couldn't remove the data.")
             return
-        self.rm_card.set_visible(False)
+        dlg.close()
         self.error.remove_css_class("ls-error")
         self.error.set_text("Removed: " + ", ".join(parts) + ". Your project folder was not touched.")
         if "settings" in parts:   # don't touch the toggles here: that would write a new settings file straight away

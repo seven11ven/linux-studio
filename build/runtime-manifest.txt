@@ -1,4 +1,4 @@
-# Linux Studio runtime: Debian trixie, built 2026-11-25T22:36Z
+# Linux Studio runtime: Debian trixie, built 2026-11-26T15:04Z
 adwaita-icon-theme 48.1-1
 apt 3.0.4
 at-spi2-common 2.56.2-1+deb13u2
@@ -41,6 +41,9 @@ fontconfig 2.15.0-2.3
 fontconfig-config 2.15.0-2.3
 fonts-dejavu-core 2.37-8
 fonts-dejavu-mono 2.37-8
+fonts-noto-cjk 1:20240730+repack1-1
+fonts-noto-core 20201225-2
+fonts-noto-mono 20201225-2
 g++ 4:14.2.0-1
 g++-14 14.2.0-19
 g++-14-x86-64-linux-gnu 14.2.0-19

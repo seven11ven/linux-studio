@@ -1,0 +1,50 @@
+#!/bin/bash
+# Linux Studio's "open this link" command, INSIDE the sandbox (PM decision 2026-11-26).
+#
+# The editor and many extensions open links with xdg-open, which normally starts your web browser. Inside Linux Studio
+# there is no browser and no way out, so instead this routes links back INTO Linux Studio:
+#   http:// or https://   -> a tab inside Linux Studio (the editor's Integrated Browser), via the built-in
+#                            "Linux Studio link router" extension. New websites still need your approval.
+#   linux-studio://<publisher>.<extension>/...
+#                         -> back to the editor, which asks before handing it to that extension (sign-in callbacks).
+#   anything else         -> refused (file:, mailto:, other apps' schemes, the router's own address ...).
+# Nothing here can reach your real desktop or browser.
+#
+# Security review 2026-11-26: the link travels base64url-encoded (no later decoding step can change it, F1), with this
+# session's key from a read-only file so only Linux Studio itself can use the router (F2), and linux-studio:// links
+# must have the strict <publisher>.<extension> form (F6).
+set -u
+EDITOR_CLI=/app/bin/linux-studio-editor
+USER_DATA=/home/user/.config/linux-studio
+KEY_FILE=/run/linux-studio/link-token
+CALLBACK_RE='^linux-studio://[a-z0-9-]+\.[a-z0-9-]+([/?]|$)'
+ROUTER_RE='^linux-studio://linux-studio\.link-router([/?]|$)'
+
+refuse() { echo "linux-studio: link not opened: $1" >&2; exit 1; }
+
+[[ $# -eq 1 ]] || refuse "expected exactly one link"
+url="$1"
+(( ${#url} <= 8192 )) || refuse "link too long"
+[[ "$url" != *[[:cntrl:]]* ]] || refuse "link contains control characters"
+lower="${url,,}"
+
+case "$lower" in
+  http://*|https://*)
+    [[ -x "$EDITOR_CLI" ]] || refuse "the editor isn't available here"
+    [[ -r "$KEY_FILE" ]] || refuse "Linux Studio's link key is missing"
+    key="$(tr -dc 'a-f0-9' < "$KEY_FILE" | head -c 64)"
+    (( ${#key} == 64 )) || refuse "Linux Studio's link key is damaged"
+    enc="$(LS_URL="$url" /usr/bin/python3 -I -c 'import base64, os; print(base64.urlsafe_b64encode(os.environ["LS_URL"].encode()).rstrip(b"=").decode())')" \
+      || refuse "couldn't prepare the link"
+    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" --open-url "linux-studio://linux-studio.link-router/open?u=$enc&k=$key"
+    ;;
+  linux-studio://*)
+    [[ "$lower" =~ $CALLBACK_RE ]] || refuse "not a Linux Studio sign-in link"
+    [[ ! "$lower" =~ $ROUTER_RE ]] || refuse "the link router only takes links from Linux Studio itself"
+    [[ -x "$EDITOR_CLI" ]] || refuse "the editor isn't available here"
+    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" --open-url "$url"
+    ;;
+  *)
+    refuse "only web links (http/https) and Linux Studio sign-in links are opened inside Linux Studio"
+    ;;
+esac

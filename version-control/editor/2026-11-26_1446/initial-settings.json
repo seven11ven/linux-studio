@@ -1,0 +1,9 @@
+{
+  "// About": "Starting settings for Linux Studio. Applied only when you haven't set them yourself, so you can change them freely. Locked privacy settings live in default-settings.json.",
+  "window.autoDetectColorScheme": true,
+  "workbench.preferredDarkColorTheme": "Linux Studio Dark",
+  "workbench.preferredLightColorTheme": "Linux Studio Light",
+  "workbench.colorTheme": "Linux Studio Dark",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.startupEditor": "none"
+}

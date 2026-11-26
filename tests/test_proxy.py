@@ -199,6 +199,98 @@ class Decisions(unittest.TestCase):
         self.store.remove_site("redirector.gvt1.com")
         self.assertFalse(p.allowed("redirector.gvt1.com"))      # back to built-in block
 
+    def _record_notices(self, p, answer=1):
+        """Replace the notice program: record (site, kind) and answer with `answer`; run synchronously."""
+        seen = []
+        p.notice_path = "notice"
+        p._has_display = lambda: True
+
+        class R:
+            returncode = answer
+        orig_run, orig_thread = studio_proxy.subprocess.run, studio_proxy.threading.Thread
+
+        def fake_run(cmd, **k):
+            if cmd[1] == "notice":
+                seen.append((cmd[2], cmd[3]))
+            return R()
+
+        class Now:                                  # run the notice "thread" straight away
+            def __init__(self, target, daemon=None):
+                self.t = target
+
+            def start(self):
+                self.t()
+        studio_proxy.subprocess.run = fake_run
+        studio_proxy.threading.Thread = Now
+        return seen, (orig_run, orig_thread)
+
+    def _restore(self, origs):
+        studio_proxy.subprocess.run, studio_proxy.threading.Thread = origs
+
+    def test_notice_once_for_a_site_you_blocked(self):
+        self.write({"network_enabled": True, "sites": {"b.com": {"status": "blocked"}}})
+        p = studio_proxy.Policy(self.store, None)
+        seen, origs = self._record_notices(p)
+        try:
+            self.assertFalse(p.allowed("b.com"))
+            self.assertFalse(p.allowed("b.com"))
+        finally:
+            self._restore(origs)
+        self.assertEqual(seen, [("b.com", "blocked")])            # once per site per session
+
+    def test_no_notice_for_builtin_blocks(self):
+        p = studio_proxy.Policy(self.store, None)
+        seen, origs = self._record_notices(p)
+        try:
+            self.assertFalse(p.allowed("redirector.gvt1.com"))
+        finally:
+            self._restore(origs)
+        self.assertEqual(seen, [])
+
+    def test_unanswered_notice_ask_now_asks_again(self):
+        p = studio_proxy.Policy(self.store, "x")
+        asked = []
+        p._ask = lambda h: asked.append(h) or False
+        p.session_denied.add("a.com")                            # an earlier pop-up went unanswered
+        seen, origs = self._record_notices(p, answer=studio_proxy.NOTICE_ASK_NOW)
+        try:
+            self.assertFalse(p.allowed("a.com"))
+        finally:
+            self._restore(origs)
+        self.assertEqual(seen, [("a.com", "unanswered")])
+        self.assertEqual(asked, ["a.com"])                       # "Ask me now" showed the pop-up again
+
+    def test_no_notice_while_a_popup_is_open(self):
+        self.write({"network_enabled": True, "sites": {"b.com": {"status": "blocked"}}})
+        p = studio_proxy.Policy(self.store, None)
+        seen, origs = self._record_notices(p)
+        try:
+            with p.prompt_lock:                                  # an approval pop-up is on screen
+                self.assertFalse(p.allowed("b.com"))
+            self.assertEqual(seen, [])                           # never covers the pop-up
+            self.assertFalse(p.allowed("b.com"))
+        finally:
+            self._restore(origs)
+        self.assertEqual(seen, [("b.com", "blocked")])           # shown later instead
+
+    def test_no_second_popup_after_a_deny(self):
+        p = studio_proxy.Policy(self.store, "x")
+        asked = []
+        p._ask = lambda h: asked.append(h) or False
+        self.store.set_site("a.com", "blocked")                  # an earlier pop-up just answered Deny
+        p.pending.clear()
+        # Simulate a connection that passed the first checks just before the answer was saved:
+        with p.prompt_lock:
+            pass
+        self.assertFalse(p.allowed("a.com"))
+        self.assertEqual(asked, [])
+
+    def test_no_notice_without_display_or_program(self):
+        self.write({"network_enabled": True, "sites": {"b.com": {"status": "blocked"}}})
+        p = studio_proxy.Policy(self.store, None)                # no notice program given
+        self.assertFalse(p.allowed("b.com"))
+        self.assertEqual(p.notified, set())
+
     def test_store_writes_private_and_atomic(self):
         self.store.set_site("a.com", "allowed")
         self.assertEqual(oct(os.stat(self.path).st_mode & 0o777), "0o600")

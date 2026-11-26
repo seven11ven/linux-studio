@@ -13,7 +13,43 @@ does nothing (Wayland desktops decide window stacking themselves).
 import os
 
 
-def demand_attention(gtk_window):
+def _x11_window(gtk_window):
+    """(python-xlib Display, window) for a realized GTK4 window on X11, or (None, None)."""
+    if os.environ.get("WAYLAND_DISPLAY") or not os.environ.get("DISPLAY"):
+        return None, None
+    try:
+        import gi
+        gi.require_version("GdkX11", "4.0")
+        from gi.repository import GdkX11
+        surface = gtk_window.get_surface()
+        if not isinstance(surface, GdkX11.X11Surface):
+            return None, None
+        from Xlib import display
+        d = display.Display()
+        return d, d.create_resource_object("window", surface.get_xid())
+    except Exception:
+        return None, None
+
+
+def no_keyboard_focus(gtk_window):
+    """Ask the window manager never to give this window keyboard focus (WM_HINTS input = False). Call it from the
+    window's "realize" signal, before it appears, so the desktop doesn't focus it on showing. X11 only."""
+    d, win = _x11_window(gtk_window)
+    if d is None:
+        return
+    try:
+        from Xlib import Xutil
+        hints = win.get_wm_hints()
+        flags = getattr(hints, "flags", 0) if hints else 0
+        win.set_wm_hints(flags=flags | Xutil.InputHint, input=0)
+        d.flush()
+    except Exception:
+        pass
+    finally:
+        d.close()
+
+
+def demand_attention(gtk_window, urgent=True):
     if os.environ.get("WAYLAND_DISPLAY") or not os.environ.get("DISPLAY"):
         return
     try:
@@ -45,7 +81,8 @@ def demand_attention(gtk_window):
             flags = hints.flags
         except AttributeError:
             flags = hints.get("flags", 0)
-        win.set_wm_hints(flags=flags | Xutil.UrgencyHint)
+        if urgent:
+            win.set_wm_hints(flags=flags | Xutil.UrgencyHint)
         d.flush()
     except Exception:
         pass   # cosmetic: the pop-up still works, it just might not be on top

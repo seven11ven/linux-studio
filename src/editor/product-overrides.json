@@ -16,6 +16,9 @@
     "latestUrlTemplate": "https://open-vsx.org/vscode/gallery/{publisher}/{name}/latest",
     "controlUrl": "https://raw.githubusercontent.com/EclipseFdn/publish-extensions/refs/heads/master/extension-control/extensions.json"
   },
+  "trustedExtensionProtocolHandlers": [
+    "linux-studio.link-router"
+  ],
   "linkProtectionTrustedDomains": [
     "https://open-vsx.org"
   ],

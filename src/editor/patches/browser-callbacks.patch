@@ -1,0 +1,19 @@
+--- a/src/vs/platform/browserView/electron-main/browserSessionPermissions.ts	2026-11-26 15:09:29.835888948 +0000
++++ b/src/vs/platform/browserView/electron-main/browserSessionPermissions.ts	2026-11-26 15:20:02.913882400 +0000
+@@ -464,6 +464,16 @@
+ 		if (isAlwaysAllowedPermission(permission)) {
+ 			return true;
+ 		}
++		// Linux Studio: a sign-in page may hand a "linux-studio://<publisher>.<extension>/..." callback back to the editor
++		// (Electron then runs Linux Studio's in-sandbox xdg-open, which passes it on; the editor still asks before giving
++		// it to the extension). Only the page itself (not a frame inside it) may do this, and never for Linux Studio's own
++		// link router. Every other external protocol stays refused, as before.
++		if (permission === 'openExternal') {
++			const d = details as { externalURL?: unknown; isMainFrame?: unknown } | undefined;
++			const externalURL = d?.externalURL;
++			return d?.isMainFrame === true && typeof externalURL === 'string'
++				&& /^linux-studio:\/\/(?!linux-studio\.link-router(?:[/?]|$))[a-z0-9-]+\.[a-z0-9-]+(?:[/?]|$)/i.test(externalURL);
++		}
+ 		// eslint-disable-next-line local/code-no-in-operator
+ 		const securityOrigin = details && 'securityOrigin' in details ? details.securityOrigin : undefined;
+ 		const origin = getPermissionOrigin(details?.requestingUrl ?? webContents?.getURL(), securityOrigin);

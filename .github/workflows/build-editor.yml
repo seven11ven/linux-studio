@@ -86,6 +86,18 @@ jobs:
           mv product.json.new product.json
           jq '{nameShort, applicationName, extensionsGallery, voiceWsUrl, chatUrls: [.defaultChatAgent | .. | strings | select(test("://"))] | unique}' product.json
 
+      - name: Apply Linux Studio source patches
+        working-directory: vscode
+        run: |
+          # Small, reviewed changes to the editor's source (see each file in studio/src/editor/patches/).
+          # A patch that no longer applies stops the build, so an editor update can't silently drop one.
+          for p in ../studio/src/editor/patches/*.patch; do
+            echo "Applying $p"
+            git apply --check -p1 "$p"
+            git apply -p1 "$p"
+          done
+          grep -q "Linux Studio: a sign-in page may hand" src/vs/platform/browserView/electron-main/browserSessionPermissions.ts
+
       - name: Install packages
         working-directory: vscode
         env:
@@ -135,6 +147,14 @@ jobs:
           cp -r studio/src/editor/theme/. "$DEST/"
           jq -e '.contributes.themes | length == 2' "$DEST/package.json"
           [[ -z "$(jq -r '.main // .browser // empty' "$DEST/package.json")" ]] || { echo "theme extension must not contain code"; exit 1; }
+
+      - name: Add Linux Studio link router (opens extension links in a tab inside Linux Studio)
+        run: |
+          DEST=VSCode-linux-x64/resources/app/extensions/linux-studio-link-router
+          [[ ! -e "$DEST" ]] || { echo "$DEST already exists; refusing to overwrite an unknown extension"; exit 1; }
+          mkdir -p "$DEST"
+          cp studio/src/editor/link-router/package.json studio/src/editor/link-router/extension.js "$DEST/"
+          jq -e '.publisher == "linux-studio" and .name == "link-router"' "$DEST/package.json"
 
       - name: Add Linux Studio's extension signature checker (open source, replaces Microsoft's closed vsce-sign)
         run: |

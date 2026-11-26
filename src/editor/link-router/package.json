@@ -1,0 +1,12 @@
+{
+  "name": "link-router",
+  "displayName": "Linux Studio link router",
+  "description": "Opens web links from extensions (for example 'complete sign-in in your browser') in a tab inside Linux Studio. Built in; used only by Linux Studio's own xdg-open.",
+  "publisher": "linux-studio",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN the Linux Studio repository",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onUri"],
+  "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true }
+}

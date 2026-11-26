@@ -25,6 +25,7 @@ label { color: {ink}; }
 .ls-muted { color: {muted}; }
 .ls-domain { font-family: monospace; font-size: 1.25em; font-weight: 600; }
 .ls-note { background-color: {accent_soft}; border-radius: 4px; padding: 10px 12px; }
+.ls-highlight { background-color: {accent_soft}; border-radius: 4px; padding: 2px 6px; }
 .ls-note-warn { background-color: {warn_soft}; border-radius: 4px; padding: 10px 12px; }
 .ls-term { background-color: {term}; color: {term_ink}; font-family: monospace; border-radius: 4px; padding: 10px 12px; }
 .ls-pill-warn { background-color: {warn_soft}; color: {warn}; border-radius: 7px; padding: 2px 10px; font-size: 0.85em; font-weight: 600; }

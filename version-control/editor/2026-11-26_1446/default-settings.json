@@ -1,0 +1,30 @@
+{
+  "// About": "Locked privacy defaults for Linux Studio. Applied by the launcher (Phase 2). See project-notes/documents/programming_documentation.md",
+
+  "telemetry.telemetryLevel": "off",
+  "telemetry.enableCrashReporter": false,
+  "telemetry.enableTelemetry": false,
+  "telemetry.editStats.enabled": false,
+  "telemetry.feedback.enabled": false,
+  "workbench.enableExperiments": false,
+  "workbench.settings.enableNaturalLanguageSearch": false,
+  "workbench.commandPalette.experimental.enableNaturalLanguageSearch": false,
+  "workbench.welcomePage.extraAnnouncements": false,
+
+  "update.mode": "none",
+  "extensions.autoUpdate": false,
+  "extensions.autoCheckUpdates": false,
+  "extensions.excludeUnsafes": true,
+  "security.workspace.trust.enabled": true,
+
+  "chat.disableAIFeatures": true,
+  "chat.commandCenter.enabled": false,
+
+  "files.simpleDialog.enable": true,
+  "window.dialogStyle": "custom",
+
+  "http.proxy": "http://127.0.0.1:3128",
+  "http.proxySupport": "override",
+
+  "terminal.integrated.cwd": "/project-folder"
+}

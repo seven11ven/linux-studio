@@ -43,12 +43,19 @@ SEND_TIMEOUT = 30          # a side that stops reading for this long ends the tu
 
 # Exit codes from approval_prompt.py
 PROMPT_DENY, PROMPT_ONCE, PROMPT_ALWAYS, PROMPT_BLOCK_NEW = 10, 11, 12, 13
+# Exit codes from refused_notice.py ("Connection refused" notice)
+NOTICE_OPEN_SITES, NOTICE_ASK_NOW = 20, 21
+NOTICE_TIMEOUT = 40          # the notice closes itself after 20 s; this is a safety margin
 
 
 class Policy:
-    def __init__(self, store, prompt_path):
+    def __init__(self, store, prompt_path, notice_path=None, launcher=None):
         self.store = store
         self.prompt_path = prompt_path
+        self.notice_path = notice_path   # "Connection refused" notice (PM decision 2026-11-26)
+        self.launcher = launcher         # used by the notice's "Open Approved websites…"
+        self.notified = set()            # sites already noticed this session (at most once per site)
+        self.notice_busy = False         # one notice on screen at a time
         self.session_allowed = set()
         self.session_denied = set()  # closed / timed-out pop-ups: refused until Linux Studio restarts
         self.block_new = False       # "Block all new sites until restart"
@@ -85,12 +92,49 @@ class Policy:
         self.session_denied.add(host)              # closed or no answer: don't ask again this session
         return False
 
+    def _notify(self, host, kind):
+        """Show the "Connection refused" notice for a site refused without a pop-up: kind is "blocked" (you blocked
+        it) or "unanswered" (an earlier pop-up was closed or not answered). Once per site per session, one at a time,
+        never blocks the connection that triggered it."""
+        if not self.notice_path or not self._has_display():
+            return
+        if self.prompt_lock.locked():
+            return   # an approval pop-up is open: never cover it (security review 2026-11-26, F3); maybe next time
+        with self.lock:
+            if host in self.notified or self.notice_busy:
+                return
+            self.notified.add(host)
+            self.notice_busy = True
+
+        def run():
+            try:
+                code = subprocess.run([sys.executable, self.notice_path, host, kind], timeout=NOTICE_TIMEOUT,
+                                      check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
+            except (subprocess.TimeoutExpired, OSError):
+                code = None
+            finally:
+                with self.lock:
+                    self.notice_busy = False
+            if code == NOTICE_OPEN_SITES and kind == "blocked" and self.launcher:
+                try:
+                    subprocess.Popen([self.launcher, "--network-highlight", host], start_new_session=True,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except OSError:
+                    pass
+            elif code == NOTICE_ASK_NOW and kind == "unanswered":
+                with self.lock:
+                    self.session_denied.discard(host)
+                self.allowed(host)        # shows the approval pop-up now; its answer applies to the next connection
+        threading.Thread(target=run, daemon=True).start()
+
     def allowed(self, host):
         data = self.store.load()
         if not data["network_enabled"]:
             return False
         status = effective_status(data, host)
         if status == "blocked":
+            if host in data["sites"]:      # blocked by you (built-in blocks stay silent, as decided)
+                self._notify(host, "blocked")
             return False
         if status == "allowed" or host in self.session_allowed:
             return True
@@ -102,8 +146,15 @@ class Policy:
             status = effective_status(self.store.load(), host)
             if status in ("allowed", "blocked"):
                 return status == "allowed" and self.store.load()["network_enabled"]
-            if self.block_new or host in self.session_denied:
+            if self.block_new:
                 return False
+            denied_unanswered = host in self.session_denied
+        if denied_unanswered:
+            self._notify(host, "unanswered")
+            return False
+        with self.lock:
+            if host in self.session_allowed:
+                return True
             entry = self.pending.get(host)
             owner = entry is None
             if owner and len(self.pending) >= MAX_WAITING_SITES:
@@ -115,7 +166,11 @@ class Policy:
         if owner:
             try:
                 with self.prompt_lock:             # wait for any other pop-up to be answered first
-                    if self.block_new or host in self.session_denied:
+                    # Re-check everything now: an earlier pop-up may have just answered for this site (F4).
+                    status = effective_status(self.store.load(), host)
+                    if status == "allowed" or host in self.session_allowed:
+                        result[0] = True
+                    elif status == "blocked" or self.block_new or host in self.session_denied:
                         result[0] = False
                     else:
                         result[0] = self._ask(host)
@@ -332,6 +387,8 @@ def main():
     ap.add_argument("--config")
     ap.add_argument("--fixed-allowlist")
     ap.add_argument("--prompt")
+    ap.add_argument("--notice", help="the \"Connection refused\" notice program")
+    ap.add_argument("--launcher", help="the linux-studio launcher (for \"Open Approved websites\")")
     ap.add_argument("--parent-pid", type=int)
     args = ap.parse_args()
     if bool(args.config) == bool(args.fixed_allowlist):
@@ -341,7 +398,7 @@ def main():
     server = Server(args.socket, Handler)
     os.umask(old_umask)
     server.policy = (FixedPolicy(args.fixed_allowlist) if args.fixed_allowlist
-                     else Policy(Store(args.config), args.prompt))
+                     else Policy(Store(args.config), args.prompt, args.notice, args.launcher))
     server.slots = threading.BoundedSemaphore(MAX_TUNNELS)
 
     def stop(*_):

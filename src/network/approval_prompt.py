@@ -140,7 +140,16 @@ def main():
         clicks.connect("pressed", input_while_locked)
         win.add_controller(clicks)
         win.connect("map", arm)
-        win.connect("notify::is-active", lambda w, _p: arm() if w.is_active() else None)
+        def relock(w, _p):
+            # Whenever the pop-up becomes the active window again (for example after something covered it), its
+            # buttons lock again for a second, so a click aimed at something else can't land on them (F3).
+            if not w.is_active():
+                return
+            timer["armed"] = True
+            for b in buttons:
+                b.set_sensitive(False)
+            arm()
+        win.connect("notify::is-active", relock)
         # Keep this pop-up on top on X11 desktops (without taking the keyboard), so it can't hide behind Linux Studio.
         win.connect("map", lambda w: GLib.timeout_add(100, lambda: demand_attention(w) or False))
         # No default button: pressing Enter must not approve anything by accident.

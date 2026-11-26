@@ -35,9 +35,11 @@ def friendly_time(stamp):
 
 
 class SitesWindow(Gtk.ApplicationWindow):
-    def __init__(self, app, store):
+    def __init__(self, app, store, highlight=None):
         super().__init__(application=app, title="Linux Studio · Approved websites")
         self.store = store
+        self.highlight = highlight          # a site to point out (opened from the "Connection refused" notice)
+        self.highlight_widget = None
         self.set_default_size(720, 480)
         apply_theme(self)
 
@@ -71,6 +73,10 @@ class SitesWindow(Gtk.ApplicationWindow):
         scroller = Gtk.ScrolledWindow(vexpand=True)
         scroller.set_child(self.grid)
         outer.append(scroller)
+        explain = Gtk.Label(xalign=0, wrap=True, use_markup=True,
+                            label="<b>Block</b>: refuse without asking.   <b>Remove</b>: forget the site, so you're asked again next time.")
+        explain.add_css_class("ls-muted")
+        outer.append(explain)
 
         bottom = Gtk.Box(spacing=8)
         note = Gtk.Label(label="Saved outside the sandbox. Extensions can't read or change this list.",
@@ -84,6 +90,8 @@ class SitesWindow(Gtk.ApplicationWindow):
 
         self.refresh()
         GLib.timeout_add_seconds(3, self._poll)   # show new sites approved from pop-ups
+        if self.highlight_widget is not None:      # bring the pointed-out site into view
+            GLib.idle_add(lambda: self.highlight_widget.grab_focus() and False)
 
     def _poll(self):
         self.refresh()
@@ -124,14 +132,19 @@ class SitesWindow(Gtk.ApplicationWindow):
             used = Gtk.Label(label=friendly_time(info["last_used"]), xalign=0)
             used.add_css_class("ls-muted")
             btns = Gtk.Box(spacing=6, halign=Gtk.Align.END)
-            flip = Gtk.Button(label="Block" if allowed else "Allow")
+            flip = Gtk.Button(label="Block" if allowed else "Allow",
+                              tooltip_text="Refuse this site without asking" if allowed else "Allow this site without asking")
             flip.connect("clicked", self.on_flip, host, "blocked" if allowed else "allowed")
-            rm = Gtk.Button(label="Remove")
+            rm = Gtk.Button(label="Remove", tooltip_text="Forget this site: you'll be asked again next time")
             rm.add_css_class("ls-danger")
             rm.connect("clicked", self.on_remove, host)
             btns.append(flip)
             if not builtin:                          # built-in entries can be allowed, not removed
                 btns.append(rm)
+            if host == self.highlight:
+                for w in (name, used):
+                    w.add_css_class("ls-highlight")
+                self.highlight_widget = flip
             for col, w in enumerate((name, pill, used, btns)):
                 self.grid.attach(w, col, row, 1, 1)
 
@@ -161,11 +174,13 @@ class SitesWindow(Gtk.ApplicationWindow):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
+    ap.add_argument("--highlight", help="a site to point out in the list")
     args = ap.parse_args()
+    highlight = normalise_host(args.highlight) if args.highlight else None
     store = Store(args.config)
     app = Gtk.Application(application_id="io.github.seven11ven.linuxstudio.Websites",
                           flags=Gio.ApplicationFlags.NON_UNIQUE)
-    app.connect("activate", lambda a: SitesWindow(a, store).present())
+    app.connect("activate", lambda a: SitesWindow(a, store, highlight).present())
     return app.run([])
 
 

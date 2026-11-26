@@ -378,6 +378,68 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
     sandbox that sees only your display socket. It sets the window's class to `linux-studio-editor` (the menu entry's `StartupWMClass`) and its icon
     (`src/display/icons/ls-*.png`), then exits. It's cosmetic: if it fails, Linux Studio still works.
 
+## dev5: CPU and memory, links inside Linux Studio, refusal notice, fonts (2026-11-26)
+
+### CPU and memory limits
+- **Settings > CPU and memory.** Defaults (PM decision): **all CPU cores but one**, and **75% of the computer's memory**. "All cores" and "No limit" can be chosen.
+  The defaults are worked out on each computer at every start.
+- **Stored as** `CPU_CORES` (default, all, or a number) and `MEMORY_LIMIT_GB` (default, none, or a number) in `~/.config/linux-studio/config`.
+  Launcher options: `--set-cpu-cores`, `--set-memory-limit`, `--get-resources`.
+- **How they're enforced** (only the editor sandbox and `--shell`/`--self-test`; the private display, pop-ups and Settings stay outside so they keep working):
+  - **Cores:** `taskset` pins Linux Studio to the first N allowed CPUs. Programs inside see N cores (`nproc`), so builds use the right number of jobs.
+  - **Memory:** `systemd-run --user --scope -p MemoryMax=…G`. If Linux Studio uses more than that, Linux stops the biggest program inside it.
+    `MemoryHigh` (90% of the cap) slows things down first, and `MemorySwapMax` caps swap at a quarter of the cap.
+  - **Kernel-enforced extras where systemd allows them** (security review F5): `CPUQuota` (cores × 100%), which can't be widened from inside, and
+    `TasksMax=4096`, which stops "fork bombs".
+    This needs systemd's user session with memory control, which Mint and Ubuntu have. Without it, Linux Studio starts with no memory limit and says so
+    (Settings note, a warning at start, and a `--self-test` line).
+
+### Links open inside Linux Studio (link router)
+- **Clicked links:** `workbench.externalUriOpeners: {"*": "workbench.integratedBrowser"}` (an initial setting) opens links you click in the editor in its
+  **Integrated Browser** tab. The tab runs inside the sandbox, and its traffic goes through the approval proxy (tested).
+- **Links opened by extensions** (for example "complete sign-in in your browser"):
+  - The editor sends these to the system's `xdg-open`, ignoring the setting above. Linux Studio's own **`src/launcher/xdg-open`** is mounted read-only at
+    `/run/linux-studio/bin/xdg-open` and placed first on the sandbox's PATH. It routes as follows:
+    - `http(s)://` → `linux-studio://linux-studio.link-router/open?u=<base64url link>&k=<session key>`, handed to the editor (`--open-url`). The built-in extension
+      **`src/editor/link-router/`** opens it in a tab. It accepts only plain http/https, refuses `user:password@` links, and accepts nothing without this
+      session's key. The key is a random value in a read-only file, `/run/linux-studio/link-token`, which web pages can't read. At most 3 links open per
+      10 seconds (security review F1/F2).
+    - `linux-studio://<publisher>.<extension>/…` → back to the editor, which asks before passing it to that extension (sign-in callbacks). The router's own
+      address is refused.
+    - anything else (`file:`, `mailto:`, other schemes) → refused.
+  - The router is a trusted handler (`trustedExtensionProtocolHandlers` in the product overrides), so it doesn't ask before each link. Other extensions
+    still get the editor's "Allow … to open this URI?" question.
+- **Editor patch** `src/editor/patches/browser-callbacks.patch` (applied by the editor workflow; also applied to the local build for dev5):
+  - The Integrated Browser normally refuses to hand any non-web address on. The patch allows only
+    `linux-studio://<publisher>.<extension>/…` from the page itself (not frames inside it), and never the link router. That lets a sign-in page's redirect
+    back to the editor work.
+  - The workflow stops if the patch no longer applies, so an editor update can't silently drop it.
+- **Tested end to end:** an extension's sign-in page opened in a tab, redirected to `linux-studio://…/callback`, the editor asked "Allow…", and the extension
+  received its code. This still works after the security fixes. Repeatable test: `tests/link-router-test.sh` (30 checks: routing, tricky links kept intact,
+refused schemes, session key, rate limit, and the browser patch's rule).
+
+### "Connection refused" notice and Approved websites wording
+- **The notice:** `src/network/refused_notice.py`, started by the proxy (`--notice`, `--launcher`). It appears when a site is refused **without** a pop-up,
+  either because you blocked it, or because an earlier pop-up was closed or unanswered (refused until restart).
+  - Shown at most once per site per session, one at a time, never for built-in blocks.
+  - It doesn't take keyboard focus (`no_keyboard_focus` in `src/common/window_attention.py`), stays on top, locks its buttons for 1 second, and closes
+    itself after 20 seconds.
+  - **Open Approved websites…** opens the list with the site highlighted (`--network-highlight`). **Ask me now** clears the session refusal and shows the
+    approval pop-up.
+- **Approved websites window:** explains "Block: refuse without asking. Remove: forget the site, so you're asked again next time", with tooltips on each button.
+- **Notice and pop-up safety:** the notice never appears while an approval pop-up is open, and the pop-up re-locks its buttons for 1 s whenever it becomes
+  active again (security review F3).
+- **Unit tests:** `tests/test_proxy.py` gained six tests (notices, plus no second pop-up after a Deny, F4).
+- **Security reviews** are now recorded in `project-notes/security_log.md`.
+
+### Settings window
+- The content scrolls inside a 640×760 window, so it fits on 1080p screens.
+- The Remove-data confirmation is its own modal window: Cancel is the default and Enter cancels; **Remove selected** unlocks after 1 second.
+
+### Fonts
+- The runtime adds Debian's **Noto** fonts (`fonts-noto-core`, `fonts-noto-cjk`; SIL Open Font License 1.1; about 134 MB installed), so non-Latin text
+  shows properly. The previous runtime is kept in `version-control/runtime/2026-11-26_1511/` (ignored by git).
+
 ## Extension compatibility check: Claude Code (closed 2026-11-26)
 The PM tested the Claude Code extension inside Linux Studio as an example of a demanding extension (signs in, uses a website, runs commands,
 edits files). **Nothing Claude-specific is built into Linux Studio:** no pre-approved sites, no special permissions, no special code. It follows

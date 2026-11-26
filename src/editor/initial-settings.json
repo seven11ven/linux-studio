@@ -5,5 +5,7 @@
   "workbench.preferredLightColorTheme": "Linux Studio Light",
   "workbench.colorTheme": "Linux Studio Dark",
   "workbench.secondarySideBar.defaultVisibility": "hidden",
-  "workbench.startupEditor": "none"
+  "workbench.startupEditor": "none",
+  "// Web links": "Web links (for example an extension's 'complete sign-in in your browser') open in a tab inside Linux Studio, in the editor's Integrated Browser, so they stay in the sandbox and use your approved-websites list (PM decision 2026-11-26).",
+  "workbench.externalUriOpeners": { "*": "workbench.integratedBrowser" }
 }

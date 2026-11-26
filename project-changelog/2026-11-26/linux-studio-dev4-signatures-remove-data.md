@@ -99,3 +99,19 @@ Confirmed safe:
   - "Connection refused" notice (blocked or unanswered; at most once per site per session; no focus; 20 s; Open Approved websites highlights the row; Ask me now)
   - Block/Remove explanation and tooltips in Approved websites
 - **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager
+
+## Update 15:02 UTC: dev5 decisions; old builds deleted with PM permission
+- **Disk cleanup (explicit PM permission, "Delete all three"):**
+  - deleted `project-builds/dev-builds/Linux-Studio-debian-amd64-0.1.0~dev1/` (revisions 1–3; 1 defective, 2 superseded, 3 replaced by dev2–dev4)
+  - deleted `version-control/runtime/2026-11-25_1516/` and `…_1830/` (the oldest two runtime backups)
+
+  Build logs, changelogs and the newest runtime backup (`…_2235`) are kept. Free space went from 5.8 GB to 9.9 GB.
+- **Found during dev5 testing:**
+  - The in-app browser tab works inside the sandbox, and its traffic goes through the approval proxy (example.com's last-used time updated when the tab opened).
+  - Links opened **by extensions** skip the editor's configured openers and go to a "system browser" (`xdg-open`), which doesn't exist in the sandbox.
+  - So do `linux-studio://` sign-in callbacks. That's why Cline-style sign-ins can't complete.
+- **PM decisions:**
+  - Add a Linux Studio `xdg-open` inside the sandbox plus a tiny built-in link-router extension: http(s) links go to the in-app tab, `linux-studio://` goes back to the
+    waiting extension, and other schemes are refused.
+  - Add the free Noto fonts (core + CJK; about 134 MB installed) to the private runtime.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
