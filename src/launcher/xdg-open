@@ -27,6 +27,9 @@ url="$1"
 (( ${#url} <= 8192 )) || refuse "link too long"
 [[ "$url" != *[[:cntrl:]]* ]] || refuse "link contains control characters"
 lower="${url,,}"
+# Where the editor itself had to start without Chromium's inner sandbox (Ubuntu 24.04+ / Mint), the short-lived editor
+# command must too, or it quits silently. It only hands the link to the running editor and exits.
+EXTRA=(); [[ "${LS_EDITOR_NO_SANDBOX:-}" == 1 ]] && EXTRA=(--no-sandbox)
 
 case "$lower" in
   http://*|https://*)
@@ -36,13 +39,13 @@ case "$lower" in
     (( ${#key} == 64 )) || refuse "Linux Studio's link key is damaged"
     enc="$(LS_URL="$url" /usr/bin/python3 -I -c 'import base64, os; print(base64.urlsafe_b64encode(os.environ["LS_URL"].encode()).rstrip(b"=").decode())')" \
       || refuse "couldn't prepare the link"
-    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" --open-url "linux-studio://linux-studio.link-router/open?u=$enc&k=$key"
+    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" "${EXTRA[@]}" --open-url "linux-studio://linux-studio.link-router/open?u=$enc&k=$key"
     ;;
   linux-studio://*)
     [[ "$lower" =~ $CALLBACK_RE ]] || refuse "not a Linux Studio sign-in link"
     [[ ! "$lower" =~ $ROUTER_RE ]] || refuse "the link router only takes links from Linux Studio itself"
     [[ -x "$EDITOR_CLI" ]] || refuse "the editor isn't available here"
-    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" --open-url "$url"
+    exec "$EDITOR_CLI" --user-data-dir "$USER_DATA" "${EXTRA[@]}" --open-url "$url"
     ;;
   *)
     refuse "only web links (http/https) and Linux Studio sign-in links are opened inside Linux Studio"

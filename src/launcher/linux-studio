@@ -475,7 +475,9 @@ setup_x11() {   # setup_x11 HOST_DISPLAY_NUMBER
   [[ -f "$RUNTIME_TMP/bridge.xauth" ]] || : > "$RUNTIME_TMP/bridge.xauth"
   local size; size="$(DISPLAY=":$h" XAUTHORITY="$xauth_src" /usr/bin/python3 -c '
 from Xlib import display
-s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.height_in_pixels*0.85)}")' 2>/dev/null || echo 1280x800)"
+s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.height_in_pixels*0.85)}")' 2>/dev/null \
+    | grep -oE '^[0-9]{3,5}x[0-9]{3,5}$' | tail -1 || true)"   # only "WIDTHxHEIGHT" (the X library can print warnings here)
+  [[ "$size" =~ ^[0-9]{3,5}x[0-9]{3,5}$ ]] || size=1280x800
   # Xephyr in its own sandbox: sees your display socket and its own socket folder, not your files.
   "$BWRAP" "${X_SANDBOX_BASE[@]}" --bind "$xdir" /tmp/.X11-unix --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
     --ro-bind "$RUNTIME_TMP/host.xauth" /run/host.xauth --ro-bind "$RUNTIME_TMP/nested.xauth" /run/nested.xauth \
@@ -493,8 +495,9 @@ s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.hei
     /usr/bin/python3 /run/display/clipboard_bridge.py --host ":$h" --nested ":$n" --config-dir /run/config &
   BRIDGE_PID=$!
   # Window name and icon on your desktop: Xephyr calls its window "Xephyr" with no icon; this short helper labels it
-  # "linux-studio-editor" (the menu entry's StartupWMClass) with the LS icon, then exits. Cosmetic only.
-  "$BWRAP" "${X_SANDBOX_BASE[@]}" --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+  # "linux-studio-editor" (the menu entry's StartupWMClass) with the LS icon, then exits. Cosmetic only, so it's
+  # skipped for --self-test (the private display closes again within seconds there).
+  [[ -n "${SELFTEST_DIR:-}" ]] || "$BWRAP" "${X_SANDBOX_BASE[@]}" --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
     --hostname ls-bridge --ro-bind "$RUNTIME_TMP/bridge.xauth" /run/bridge.xauth --setenv XAUTHORITY /run/bridge.xauth \
     --ro-bind "$SHARE/display" /run/display \
     /usr/bin/python3 /run/display/window_label.py --host ":$h" --title "Linux Studio" --wm-class linux-studio-editor \
@@ -529,7 +532,10 @@ START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo 
   if [ -e /run/linux-studio/apply_settings.py ]; then /usr/bin/python3 /run/linux-studio/apply_settings.py || exit 1
     # Under Ubuntu'"'"'s restricted AppArmor design nothing inside may use kernel capabilities, so Chromium'"'"'s own
     # inner sandbox cannot start; Linux Studio'"'"'s main sandbox still isolates the editor (PM decision).
-    /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 || set -- "$@" --no-sandbox
+    # LS_EDITOR_NO_SANDBOX tells Linux Studio'"'"'s xdg-open to start the short-lived editor command (which only hands a
+    # link to this editor and exits) the same way; otherwise it quits silently and the link is lost.
+    /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 \
+      || { set -- "$@" --no-sandbox; export LS_EDITOR_NO_SANDBOX=1; }
   fi
   mkdir -p "$HOME/.config/go/telemetry" && printf "off\n" > "$HOME/.config/go/telemetry/mode"   # Go telemetry off
   if [ "${LS_PRIVATE_X11:-}" = 1 ] && [ -x /usr/bin/matchbox-window-manager ]; then

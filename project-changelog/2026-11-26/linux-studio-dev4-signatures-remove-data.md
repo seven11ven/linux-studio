@@ -120,3 +120,31 @@ Confirmed safe:
 - `linux-studio_0.1.0~dev5-1_amd64.deb` (538 MB, sha256 `2e5c8a1e…8b63`): all suites passed, clean install 27/27, lintian 0 errors in our files.
   Log: `project-builds/logs/Linux-Studio-debian-amd64-0.1.0~dev5-1.md`. Delivery to the PM is the next step.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 21:34 UTC: dev5 delivered; PM Mint test; dev6 fixes
+- dev5 was delivered through a one-time private link (closed after download). **PM Mint self-test: 11/11, "CPU limit applied (11 cores)" and
+  "Memory limit: 9 GB (enforced by systemd)",** confirming the limits on real hardware.
+- **Codespace timeout:** nothing was lost (everything committed and pushed). Only the scratchpad was cleared (helper scripts and copies of the unpatched editor files).
+- **Bugs found by the PM, fixed for dev6** (backups in `version-control/{runtime-overlay,display,launcher}/2026-11-26_2119/`):
+  1. **`xdg-open: command not found` in the editor terminal.** A login shell reset PATH, which also hid toolchains chosen with "Use this version" (since dev3).
+     Fixed in the runtime's shell settings; the runtime was rebuilt, and the previous one moved to `version-control/runtime/2026-11-26_2120/`. The new
+     login-shell tests failed before the fix and pass after it.
+  2. **Links not opening on Mint even with the full path.** The short-lived editor command quit silently because inner sandboxes aren't allowed there.
+     Confirmed by the PM: `--status` printed nothing, `--no-sandbox --status` printed the editor status. Fixed with `LS_EDITOR_NO_SANDBOX` → `--no-sandbox`.
+  3. **Self-test X "BadWindow" messages:** the window labelling is skipped for the self-test, and its errors are ignored.
+  4. **Private display size parsing hardened** (a warning could end up in the Xephyr `-screen` argument).
+- **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine tests) · **Approved By:** Project Manager
+
+## Update 22:01 UTC: web page full screen (PM report), dev6 combined
+- **PM report:** after a double-click on a tab and a page going full screen, the interface disappeared and keys seemed not to work.
+- **Reproduced:** a page's full-screen request made the whole editor window full screen (menus hidden). Esc reached the page only while it had focus.
+  VS Code has no handling for this, so it's Electron's default.
+- **PM decisions:**
+  - hold dev6 and combine
+  - allow page full screen with an escape route
+  - end full screen when leaving the page
+  - then, after the cost was explained: **option B, full screen stays inside the tab**
+- **Fix:** editor patch `src/editor/patches/browser-fullscreen.patch` (workflow applies and checks it; also applied to the local build). Tested: the menu bar stays,
+  and clicking the editor ends it. Mockup screen 7 notes updated.
+- **dev6-1** was built (with the terminal/Mint fixes) but **not delivered**; its install test was stopped (PM: hold and combine). The combined build is **dev6-2**.
+- **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (report and decisions) · **Approved By:** Project Manager

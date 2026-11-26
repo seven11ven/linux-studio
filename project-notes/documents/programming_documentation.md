@@ -418,6 +418,26 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
   received its code. This still works after the security fixes. Repeatable test: `tests/link-router-test.sh` (30 checks: routing, tricky links kept intact,
 refused schemes, session key, rate limit, and the browser patch's rule).
 
+### dev6 fixes (found in the PM's Mint test)
+- **Editor terminal PATH:** the editor's terminal starts a **login** shell, and Debian's `/etc/profile` resets PATH, which dropped Linux Studio's `xdg-open`
+  and the toolchains chosen with "Use this version". This had affected toolchains since dev3. Our shell settings
+  (`src/runtime/overlay/etc/linux-studio/bashrc`, loaded after `/etc/profile`) put those folders back, without duplicates. The tests now also check a login
+  shell (isolation and toolchains).
+- **Short-lived editor command on Ubuntu 24.04+/Mint:** `--open-url` starts a short-lived second editor process that hands the link to the running one. Where
+  inner sandboxes aren't allowed, it quit silently unless started with `--no-sandbox`, like the main editor. The launcher now exports
+  `LS_EDITOR_NO_SANDBOX=1` when it adds `--no-sandbox`, and the `xdg-open` shim passes the same flag (link-router test: 32 checks).
+- **Web pages going full screen** (PM's report: the interface disappeared and keys seemed dead):
+  - **Cause:** VS Code doesn't handle a page's full-screen request, so Electron made the **whole editor window** full screen, hiding the menus. Esc only
+    reached the page while it had the keyboard.
+  - **Fix (PM decision, option B):** page full screen stays **inside its tab**. Editor patch `src/editor/patches/browser-fullscreen.patch` (browserView.ts,
+    main process):
+    - the window is put back at once (unless the user made it full screen), so menus, side bars and tabs never disappear
+    - focus leaving the page, or its tab being hidden, ends the page's full screen; the exit runs in an isolated world, so the page can't block it
+  - **Tested:** the page reaches full screen with the menu bar still visible, and clicking the side bar ends it. Applied locally for dev6; the workflow
+    applies the patch and checks it.
+- **Self-test:** the window-labelling helper is skipped and its X errors are ignored (they were harmless "BadWindow" messages).
+- **Private display size:** only `WIDTHxHEIGHT` is taken from the screen measurement (the X library can print warnings there), with a 1280×800 fallback.
+
 ### "Connection refused" notice and Approved websites wording
 - **The notice:** `src/network/refused_notice.py`, started by the proxy (`--notice`, `--launcher`). It appears when a site is refused **without** a pop-up,
   either because you blocked it, or because an earlier pop-up was closed or unanswered (refused until restart).

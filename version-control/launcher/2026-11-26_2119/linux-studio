@@ -1,0 +1,589 @@
+#!/usr/bin/env bash
+# Linux Studio launcher: builds the sandbox ("locked room") with bubblewrap and starts the editor in it.
+#
+# Inside the sandbox the editor can see ONLY:
+#   /                 the bundled mini-Linux (read-only)
+#   /app              the editor itself (read-only)
+#   /home/user        Linux Studio's own private settings/extensions folder
+#   /project-folder   the one project folder you chose
+# It has no network devices of its own: its only way out is the approved-websites proxy (HTTPS only,
+# sites you approve), plus a fake identity (computer "studio", user "user", new random machine-id every
+# launch), no /sys, and no GPU unless --gpu.
+#
+# Usage:
+#   linux-studio                          start the editor
+#   linux-studio --network                open the "Approved websites" window
+#   linux-studio --settings               open Linux Studio's settings (clipboard, extension signatures, display)
+#   linux-studio --set-extension-size-limit MB   largest extension the signature check accepts (256, 512, 1024, 1536)
+#   linux-studio --set-cpu-cores N|all|default        CPU cores Linux Studio may use (default: all but one)
+#   linux-studio --set-memory-limit GB|none|default   memory cap (default: 75% of this computer's memory)
+#   linux-studio --remove-my-data         delete Linux Studio's data from this computer (asks first; never your project)
+#   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
+#   linux-studio --set-project-folder P   choose the project folder
+#   linux-studio --shell [-c COMMAND]     open a terminal in the same sandbox (testing/debugging)
+#   linux-studio --self-test              check that the sandbox works on this computer
+#   linux-studio --gpu                    allow the graphics card (off by default for privacy)
+#   linux-studio --unsafe-direct-x11      X11 without the private display (NOT recommended: code inside could read
+#                                         your screen and type into other windows)
+#   linux-studio --editor-dir D --runtime-dir D   use a development build instead of /opt/linux-studio
+set -euo pipefail
+
+PROG="linux-studio"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linux-studio"
+CONFIG_FILE="$CONFIG_DIR/config"
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/linux-studio"
+SANDBOX_HOME="$STATE_DIR/home"
+
+SELF="$(readlink -f "$0")"
+HERE="$(dirname "$SELF")"
+if [[ -d /opt/linux-studio/share ]]; then SHARE=/opt/linux-studio/share; else SHARE="$(cd "$HERE/.." && pwd)"; fi
+SETTINGS_SRC="$SHARE/editor/default-settings.json"
+INITIAL_SETTINGS="$SHARE/editor/initial-settings.json"
+APPLY_SETTINGS="$SHARE/launcher/apply_settings.py"
+FIRST_RUN="$SHARE/first-run/first_run.py"
+NETWORK_DIR="$SHARE/network"
+NETWORK_CONFIG="$CONFIG_DIR/network.json"
+TOOLCHAINS_DIR="$STATE_DIR/toolchains"
+TOOLCHAINS_SRC="$SHARE/toolchains"
+EDITOR_DIR=/opt/linux-studio/editor
+RUNTIME_DIR=/opt/linux-studio/runtime
+
+die()  { echo "$PROG: $*" >&2; exit 1; }
+warn() { echo "$PROG: warning: $*" >&2; }
+
+# ---------- project folder: validate, save, load ----------
+
+# Prints the cleaned absolute path, or fails with a reason. Used by --set-project-folder and the first-run window.
+validate_project_folder() {
+  local raw="$1" p
+  [[ -n "$raw" ]] || die "no folder given"
+  [[ "$raw" != *$'\n'* ]] || die "folder names with line breaks are not supported"
+  raw="${raw/#\~/$HOME}"
+  p="$(realpath -m -- "$raw")"
+  case "$p" in
+    /|/bin|/boot|/dev|/etc|/lib|/lib32|/lib64|/libx32|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var|/home|/media|/mnt)
+      die "'$p' is a system folder. Choose or create a dedicated folder, e.g. ~/LinuxStudio/project-folder" ;;
+    /bin/*|/boot/*|/dev/*|/etc/*|/lib/*|/lib64/*|/proc/*|/run/*|/sbin/*|/sys/*|/usr/*|/var/*)
+      die "'$p' is inside a system folder" ;;
+  esac
+  local home; home="$(realpath -m -- "$HOME")"
+  [[ "$p" != "$home" ]] || die "that is your whole home folder. Choose a dedicated folder inside it"
+  [[ "$home/" != "$p/"* ]] || die "'$p' contains your home folder"
+  local s; for s in "$STATE_DIR" "$CONFIG_DIR"; do
+    s="$(realpath -m -- "$s")"
+    [[ "$s/" != "$p/"* && "$p/" != "$s/"* ]] || die "'$p' overlaps Linux Studio's own settings folder ($s)"
+  done
+  printf '%s\n' "$p"
+}
+
+# Settings file: simple KEY=value lines, read without ever executing it. Written only by this launcher.
+get_setting() {   # get_setting KEY DEFAULT
+  local line=""; [[ -f "$CONFIG_FILE" ]] && line="$(grep -m1 "^$1=" "$CONFIG_FILE" || true)"
+  if [[ -n "$line" ]]; then printf '%s\n' "${line#*=}"; else printf '%s\n' "$2"; fi
+}
+set_setting() {   # set_setting KEY VALUE  (keeps every other setting; replaces the file in one step)
+  mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+  { [[ -f "$CONFIG_FILE" ]] && grep -v "^$1=" "$CONFIG_FILE" || true; printf '%s=%s\n' "$1" "$2"; } > "$CONFIG_FILE.tmp"
+  chmod 600 "$CONFIG_FILE.tmp"; mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+}
+
+save_project_folder() {
+  local p; p="$(validate_project_folder "$1")"
+  mkdir -p -- "$p"
+  mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+  set_setting PROJECT_FOLDER "$p"
+  echo "Project folder set to: $p"
+}
+
+# Read the config without executing it (never `source` a settings file).
+load_project_folder() {
+  [[ -f "$CONFIG_FILE" ]] || return 1
+  local line; line="$(grep -m1 '^PROJECT_FOLDER=' "$CONFIG_FILE" || true)"
+  PROJECT_FOLDER="${line#PROJECT_FOLDER=}"
+  [[ -n "$PROJECT_FOLDER" && -d "$PROJECT_FOLDER" ]] || return 1
+  PROJECT_FOLDER="$(validate_project_folder "$PROJECT_FOLDER")"
+}
+
+first_run() {
+  if [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]] && /usr/bin/python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null; then
+    /usr/bin/python3 "$FIRST_RUN" "$SELF" || exit 0     # window closed with "Quit"
+  else
+    echo "Linux Studio can only see one folder. Choose where your project folder should live."
+    local ans; read -r -p "Project folder [~/LinuxStudio/project-folder]: " ans
+    save_project_folder "${ans:-$HOME/LinuxStudio/project-folder}"
+  fi
+}
+
+# ---------- CPU and memory limits (Settings > CPU and memory) ----------
+# Defaults (PM decision 2026-11-26): all CPU cores but one, and 75% of the computer's memory. "all" / "none" lift a limit.
+total_cores() { nproc 2>/dev/null || echo 1; }
+total_memory_gb() { awk '/^MemTotal:/ { printf "%d\n", $2 / 1048576 }' /proc/meminfo; }
+default_cores() { local t; t="$(total_cores)"; (( t > 1 )) && echo $(( t - 1 )) || echo 1; }
+default_memory_gb() { awk '/^MemTotal:/ { g = int($2 * 0.75 / 1048576); if (g < 1) g = 1; print g }' /proc/meminfo; }
+
+# The cores to use (a number), from the setting: default, all, or a number (kept within 1..total).
+effective_cores() {
+  local v t; v="$(get_setting CPU_CORES default)"; t="$(total_cores)"
+  case "$v" in
+    all) echo "$t" ;;
+    ''|default) default_cores ;;
+    *) if [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 )); then (( v > t )) && echo "$t" || echo "$v"; else default_cores; fi ;;
+  esac
+}
+# Memory cap in GB, or "none".
+effective_memory_gb() {
+  local v t; v="$(get_setting MEMORY_LIMIT_GB default)"; t="$(total_memory_gb)"
+  case "$v" in
+    none) echo none ;;
+    ''|default) default_memory_gb ;;
+    *) if [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 )) && (( v < t || t == 0 )); then echo "$v"; else default_memory_gb; fi ;;
+  esac
+}
+# Can a memory limit be enforced here? Needs systemd's user session with the memory controller delegated (Mint/Ubuntu: yes).
+systemd_controllers() {   # the cgroup controllers systemd's user session can use here (empty if none / no systemd)
+  command -v systemd-run >/dev/null 2>&1 || return 0
+  local uid; uid="$(id -u)"
+  systemd-run --user --scope --quiet --collect true >/dev/null 2>&1 || return 0
+  cat "/sys/fs/cgroup/user.slice/user-$uid.slice/user@$uid.service/cgroup.subtree_control" 2>/dev/null || true
+}
+memory_limit_supported() { [[ " $(systemd_controllers) " == *" memory "* ]]; }
+# The first N CPUs this process may use, as a taskset list ("0,1,2").
+cpu_list() {   # cpu_list N
+  local allowed; allowed="$(awk '/^Cpus_allowed_list:/ { print $2 }' /proc/self/status)"
+  local out=() part a b i
+  IFS=',' read -r -a parts <<< "$allowed"
+  for part in "${parts[@]}"; do
+    a="${part%-*}"; b="${part#*-}"
+    for (( i = a; i <= b && ${#out[@]} < $1; i++ )); do out+=("$i"); done
+  done
+  local IFS=','; echo "${out[*]}"
+}
+print_resources() {   # used by the Settings window
+  echo "total_cores=$(total_cores)"; echo "total_memory_gb=$(total_memory_gb)"
+  echo "default_cores=$(default_cores)"; echo "default_memory_gb=$(default_memory_gb)"
+  echo "cores_setting=$(get_setting CPU_CORES default)"; echo "memory_setting=$(get_setting MEMORY_LIMIT_GB default)"
+  echo "cores=$(effective_cores)"; echo "memory_gb=$(effective_memory_gb)"
+  memory_limit_supported && echo "memory_limit_supported=yes" || echo "memory_limit_supported=no"
+}
+
+# ---------- "Remove my Linux Studio data" ----------
+RUNNING_DIR="$STATE_DIR/running"
+
+proc_start_time() {   # proc_start_time PID: the process's start time (field 22 of /proc/PID/stat), empty if gone
+  local st; st="$(cat "/proc/$1/stat" 2>/dev/null)" || return 0
+  st="${st##*) }"; local f; read -r -a f <<< "$st"; printf '%s\n' "${f[19]:-}"
+}
+
+# Is any Linux Studio (editor, shell, toolchains worker) still running? Each one registers its process number in
+# $RUNNING_DIR while it runs (a lock file is not used: an open file would be passed into the sandbox and show its
+# real path there). Stale entries from crashed runs are cleaned up here.
+linux_studio_running() {
+  local f pid
+  [[ -d "$RUNNING_DIR" ]] || return 1
+  for f in "$RUNNING_DIR"/*; do
+    [[ -e "$f" ]] || continue
+    pid="${f##*/}"
+    # Same process number AND same start time as when it registered, so a reused number never counts.
+    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && [[ -n "$(proc_start_time "$pid")" ]] \
+       && [[ "$(cat "$f" 2>/dev/null)" == "$(proc_start_time "$pid")" ]]; then
+      return 0
+    fi
+    rm -f -- "$f"
+  done
+  return 1
+}
+
+# Deletes one of Linux Studio's own folders, only if it is a real folder (not a link) at exactly the expected place.
+remove_dir_safely() {   # remove_dir_safely LABEL PATH
+  local label="$1" d="$2" home; home="$(realpath -m -- "$HOME")"
+  if [[ ! -e "$d" && ! -L "$d" ]]; then echo "  $label: nothing to remove"; return 0; fi
+  [[ -d "$d" && ! -L "$d" ]] || die "$label: $d is not a normal folder, so it was left alone"
+  [[ "$(realpath -- "$d")" == "$(realpath -m -- "$d")" && "$(realpath -- "$d")" == "$d" ]] \
+    || die "$label: $d goes through a link, so it was left alone"
+  case "$d" in /|"$home"|"$home"/|/home|/root) die "$label: refusing to delete $d" ;; esac
+  [[ "$(basename "$d")" == home || "$(basename "$d")" == toolchains || "$(basename "$d")" == linux-studio ]] \
+    || die "$label: unexpected folder name $d, left alone"
+  [[ -O "$d" ]] || die "$label: $d belongs to another user, so it was left alone"
+  # Some tools (Go's module cache, for example) make folders read-only, and code inside Linux Studio could do the same on
+  # purpose; rm can't empty those. Make every folder inside writable for you first. find doesn't follow links and -xdev
+  # keeps it on this disk, so nothing outside the folder is changed (security review 2026-11-26, finding 2).
+  find "$d" -xdev -type d ! -perm -u=rwx -exec chmod u+rwx -- {} + 2>/dev/null || true
+  rm -rf --one-file-system -- "$d" || die "$label: couldn't remove everything in $d"
+  echo "  $label: removed"
+}
+
+# PARTS: comma list of extensions (private home: extensions, editor settings, logins), toolchains, settings
+# (Settings choices, approved websites, project folder choice). The project folder itself is never touched.
+remove_my_data() {   # remove_my_data PARTS
+  local parts=",$1,"
+  [[ "$parts" =~ ^,((extensions|toolchains|settings),)+$ ]] || die "choose what to remove: extensions, toolchains, settings"
+  linux_studio_running && die "Linux Studio is still open. Close it (and the Toolchains window) first, then try again."
+  STATE_DIR="$(realpath -m -- "$STATE_DIR")"; CONFIG_DIR="$(realpath -m -- "$CONFIG_DIR")"
+  # If the settings folder and the data folder overlap (unusual XDG_* settings), removing one would delete parts you
+  # didn't choose, so refuse (security review 2026-11-26, finding 5).
+  [[ "$STATE_DIR/" != "$CONFIG_DIR/"* && "$CONFIG_DIR/" != "$STATE_DIR/"* ]] \
+    || die "Linux Studio's settings folder ($CONFIG_DIR) and data folder ($STATE_DIR) overlap; remove them by hand instead"
+  echo "Removing Linux Studio data (your project folder is not touched):"
+  [[ "$parts" != *,extensions,* ]] || remove_dir_safely "Extensions, editor settings and logins" "$STATE_DIR/home"
+  [[ "$parts" != *,toolchains,* ]] || remove_dir_safely "Toolchains" "$STATE_DIR/toolchains"
+  [[ "$parts" != *,settings,* ]]   || remove_dir_safely "Settings choices and approved websites" "$CONFIG_DIR"
+  echo "Done."
+}
+
+remove_my_data_interactive() {
+  [[ -t 0 ]] || die "--remove-my-data asks questions; run it in a terminal (or use Settings > Your data)"
+  local parts="" a
+  echo "Remove your Linux Studio data from this computer. Your project folder is never touched."
+  echo "Close Linux Studio first. This can't be undone."
+  read -r -p "Remove extensions, editor settings and logins (for example Claude's)? [Y/n] " a; [[ "$a" =~ ^[Nn] ]] || parts+="extensions,"
+  read -r -p "Remove toolchains you installed? [Y/n] " a;                                      [[ "$a" =~ ^[Nn] ]] || parts+="toolchains,"
+  read -r -p "Remove your Settings choices and approved websites? [y/N] " a;                    [[ "$a" =~ ^[Yy] ]] && parts+="settings,"
+  [[ -n "$parts" ]] || { echo "Nothing selected; nothing removed."; exit 0; }
+  read -r -p "Type 'remove' to delete: ${parts%,} " a
+  [[ "$a" == remove ]] || { echo "Cancelled; nothing removed."; exit 0; }
+  remove_my_data "${parts%,}"
+}
+
+# ---------- arguments ----------
+MODE=editor; GPU=0; UNSAFE_X11=0; SHELL_CMD=()
+while (( $# )); do
+  case "$1" in
+    --set-project-folder) (( $# >= 2 )) || die "--set-project-folder needs a path"; save_project_folder "$2"; exit 0 ;;
+    --validate-project-folder) validate_project_folder "${2:-}"; exit 0 ;;   # used by the first-run window
+    --network) exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" ;;
+    --network-highlight)   # used by the "Connection refused" notice: open the list with one site pointed out
+      exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" --highlight "${2:?site needed}" ;;
+    --settings) exec /usr/bin/python3 "$SHARE/settings/settings_window.py" "$SELF" ;;
+    --get-clipboard) get_setting CLIPBOARD paste-only; exit 0 ;;   # used by the Settings window and the clipboard bridge
+    --set-clipboard)
+      [[ "${2:-}" == paste-only || "${2:-}" == both ]] || die "--set-clipboard needs paste-only or both"
+      set_setting CLIPBOARD "$2"; echo "Clipboard: $2"; exit 0 ;;
+    --get-extension-signatures) get_setting EXTENSION_SIGNATURES check; exit 0 ;;   # used by the Settings window
+    --set-extension-signatures)
+      [[ "${2:-}" == check || "${2:-}" == off ]] || die "--set-extension-signatures needs check or off"
+      set_setting EXTENSION_SIGNATURES "$2"; echo "Extension signatures: $2 (applies the next time Linux Studio starts)"; exit 0 ;;
+    --get-extension-size-limit) get_setting EXTENSION_SIZE_LIMIT_MB 512; exit 0 ;;   # MB; used by the Settings window
+    --set-extension-size-limit)
+      [[ "${2:-}" =~ ^(256|512|1024|1536)$ ]] || die "--set-extension-size-limit needs 256, 512, 1024 or 1536 (MB)"
+      set_setting EXTENSION_SIZE_LIMIT_MB "$2"; echo "Largest extension to check: $2 MB (applies the next time Linux Studio starts)"; exit 0 ;;
+    --get-resources) print_resources; exit 0 ;;   # used by the Settings window
+    --set-cpu-cores)
+      [[ "${2:-}" == default || "${2:-}" == all || ( "${2:-}" =~ ^[0-9]+$ && "${2:-0}" -ge 1 && "${2:-0}" -le "$(total_cores)" ) ]] \
+        || die "--set-cpu-cores needs default, all, or 1..$(total_cores)"
+      set_setting CPU_CORES "$2"; echo "CPU cores: $2 (applies the next time Linux Studio starts)"; exit 0 ;;
+    --set-memory-limit)
+      [[ "${2:-}" == default || "${2:-}" == none || ( "${2:-}" =~ ^[0-9]+$ && "${2:-0}" -ge 1 && "${2:-0}" -lt "$(total_memory_gb)" ) ]] \
+        || die "--set-memory-limit needs default, none, or 1..$(( $(total_memory_gb) - 1 )) (GB)"
+      set_setting MEMORY_LIMIT_GB "$2"; echo "Memory limit: $2 (applies the next time Linux Studio starts)"; exit 0 ;;
+    --remove-my-data) remove_my_data_interactive; exit 0 ;;
+    --remove-my-data-now) remove_my_data "${2:-}"; exit 0 ;;   # used by the Settings window after its own confirmation
+    --is-running) linux_studio_running && echo yes || echo no; exit 0 ;;   # used by the Settings window
+    --toolchains) MODE=toolchains-ui ;;
+    --toolchains-worker) MODE=toolchains-worker ;;   # internal: started by the Toolchains explorer
+    --self-test) MODE=selftest ;;
+    --shell) MODE=shell; shift; SHELL_CMD=("$@"); break ;;
+    --gpu) GPU=1 ;;
+    --allow-x11) echo "linux-studio: --allow-x11 is no longer needed: X11 desktops now get a private, isolated display." >&2 ;;
+    --unsafe-direct-x11) UNSAFE_X11=1 ;;
+    --editor-dir) EDITOR_DIR="$(realpath -- "${2:?}")"; shift ;;
+    --runtime-dir) RUNTIME_DIR="$(realpath -- "${2:?}")"; shift ;;
+    -h|--help) sed -n '2,/^set -euo pipefail/{/^#/p}' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1 (see --help)" ;;
+  esac
+  shift
+done
+
+# Installed package: Linux Studio's own copy of the system bwrap, which is the only program the Linux Studio
+# AppArmor profile allows to create sandboxes (Ubuntu 24.04+). Development: the system bwrap.
+BWRAP=/opt/linux-studio/libexec/bwrap
+if [[ ! -x "$BWRAP" ]]; then
+  if [[ "$SELF" == /opt/linux-studio/* ]]; then BWRAP=/usr/bin/bwrap   # installed: never search PATH (review #5)
+  else BWRAP="$(command -v bwrap || true)"; fi
+fi
+[[ -n "$BWRAP" ]] || die "bubblewrap (bwrap) is not installed"
+if [[ $MODE == toolchains-ui ]]; then
+  WORKER_CMD=("$SELF" --runtime-dir "$RUNTIME_DIR" --toolchains-worker)
+  exec /usr/bin/python3 "$TOOLCHAINS_SRC/explorer.py" -- "${WORKER_CMD[@]}"
+fi
+[[ -x "$RUNTIME_DIR/usr/bin/bash" ]] || die "runtime not found at $RUNTIME_DIR (use --runtime-dir)"
+if [[ $MODE == editor ]]; then
+  [[ -x "$EDITOR_DIR/linux-studio-editor" ]] || die "editor not found at $EDITOR_DIR (use --editor-dir)"
+fi
+
+if [[ $MODE == selftest ]]; then
+  # A throwaway project folder; the checks never touch your real one.
+  SELFTEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linux-studio-selftest.XXXXXXXX")"
+  trap 'rm -rf -- "$SELFTEST_DIR"' EXIT INT TERM   # replaced by the full cleanup below (review #6)
+  PROJECT_FOLDER="$SELFTEST_DIR"
+  MODE=shell
+  SHELL_CMD=(-c '
+    ok=0; bad=0
+    t() { if eval "$2" >/dev/null 2>&1; then echo "PASS  $1"; ok=$((ok+1)); else echo "FAIL  $1"; bad=$((bad+1)); fi; }
+    t "Sandbox started"                          true
+    t "Fake computer name (studio)"              "[ \"\$(hostname)\" = studio ]"
+    t "Fake user name (user)"                    "[ \"\$(whoami)\" = user ]"
+    t "Your home folder is hidden"               "[ \"\$(ls -A /home)\" = user ]"
+    t "No network devices except loopback"       "[ \"\$(ip -o link | wc -l)\" = 1 ]"
+    t "No direct internet"                       "! curl --noproxy \"*\" -s -m 5 https://example.com"
+    t "Proxy bridge is running"                  "exec 3<>/dev/tcp/127.0.0.1/3128"
+    t "CPU limit applied (${LS_CORES} cores)"     "[ \"\$(nproc)\" = \"\$LS_CORES\" ]"
+    case "${LS_MEMORY_STATE:-off}" in
+      on) echo "INFO  Memory limit: ${LS_MEMORY} GB (enforced by systemd)" ;;
+      unsupported) echo "INFO  Memory limit of ${LS_MEMORY} GB NOT enforced: this system has no systemd user session with memory control" ;;
+      *) echo "INFO  Memory limit: none (chosen in Settings)" ;;
+    esac
+    if [ "${LS_PRIVATE_X11:-}" = 1 ]; then
+      t "X11: only Linux Studio'"'"'s private display is visible"  "[ \"\$(ls /tmp/.X11-unix | wc -l)\" = 1 ] && [ \"/tmp/.X11-unix/X\${DISPLAY#:}\" = \"\$(ls -d /tmp/.X11-unix/*)\" ]"
+      t "X11: private display is running"                        "xdpyinfo >/dev/null"
+      t "X11: no fake-keyboard (XTEST) on the private display"   "! xdpyinfo -queryExtensions | grep -q XTEST"
+    elif [ -n "${DISPLAY:-}" ]; then
+      echo "INFO  X11 direct mode (--unsafe-direct-x11): code inside could see your other windows"
+    fi
+    if /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1; then
+      echo "INFO  Inner sandboxes available (editor web-content sandbox and Rust installer sandbox are on)"
+    else
+      echo "INFO  Inner sandboxes not allowed here (normal on Ubuntu 24.04+): editor web-content and Rust installer"
+      echo "      sandboxes are off; Linux Studio'"'"'s main sandbox still isolates everything"
+    fi
+    echo; echo "$ok passed, $bad failed"; [ $bad = 0 ]')
+elif [[ $MODE != toolchains-worker ]]; then
+  load_project_folder || { first_run; load_project_folder || die "no project folder set"; }
+fi
+mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR" "$RUNNING_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOME" "$TOOLCHAINS_DIR" "$RUNNING_DIR"
+proc_start_time $$ > "$RUNNING_DIR/$$"   # "Linux Studio is running" (removed in cleanup; see linux_studio_running)
+
+# ---------- per-launch fake identity (deleted on exit) ----------
+RUNTIME_TMP="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/linux-studio.XXXXXXXX")"
+PROXY_PID=""
+cleanup() {
+  local p
+  for p in "${BRIDGE_PID:-}" "${XEPHYR_PID:-}" "$PROXY_PID"; do
+    if [[ -n "$p" ]]; then kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; fi
+  done
+  rm -rf -- "$RUNTIME_TMP"
+  rm -f -- "$RUNNING_DIR/$$"
+  [[ -z "${SELFTEST_DIR:-}" ]] || rm -rf -- "$SELFTEST_DIR"
+}
+trap cleanup EXIT INT TERM
+printf 'root:x:0:0::/root:/usr/sbin/nologin\nuser:x:1000:1000:user:/home/user:/bin/bash\nnobody:x:65534:65534::/nonexistent:/usr/sbin/nologin\n' > "$RUNTIME_TMP/passwd"
+printf 'root:x:0:\nuser:x:1000:\nnogroup:x:65534:\n' > "$RUNTIME_TMP/group"
+printf 'studio\n' > "$RUNTIME_TMP/hostname"
+printf '127.0.0.1 localhost\n127.0.1.1 studio\n::1 localhost\n' > "$RUNTIME_TMP/hosts"
+od -An -tx1 -N16 /dev/urandom | tr -d ' \n' > "$RUNTIME_TMP/machine-id"; echo >> "$RUNTIME_TMP/machine-id"
+# "Largest extension to check" (Settings), read by the signature checker from a read-only file inside the sandbox.
+size_limit="$(get_setting EXTENSION_SIZE_LIMIT_MB 512)"; [[ "$size_limit" =~ ^(256|512|1024|1536)$ ]] || size_limit=512
+printf '%s\n' "$size_limit" > "$RUNTIME_TMP/max-extension-mb"
+# Per-session key for the link router: only Linux Studio's own xdg-open reads it, so web pages can't drive the router.
+od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$RUNTIME_TMP/link-token"; echo >> "$RUNTIME_TMP/link-token"
+: > "$RUNTIME_TMP/resolv.conf"   # no name servers: names are looked up only by the proxy, outside
+
+# ---------- approved-websites proxy (stopped in cleanup) ----------
+mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+if [[ $MODE == toolchains-worker ]]; then   # official download sites only, no pop-ups
+  /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" \
+    --fixed-allowlist "$TOOLCHAINS_SRC/official-sites.json" --parent-pid $$ &
+else
+  /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" --config "$NETWORK_CONFIG" \
+    --prompt "$NETWORK_DIR/approval_prompt.py" --notice "$NETWORK_DIR/refused_notice.py" --launcher "$SELF" --parent-pid $$ &
+fi
+PROXY_PID=$!
+for _ in $(seq 50); do [[ -S "$RUNTIME_TMP/proxy.sock" ]] && break; sleep 0.1; done
+[[ -S "$RUNTIME_TMP/proxy.sock" ]] || die "the network proxy didn't start"
+
+# ---------- sandbox ----------
+ARGS=(
+  --unshare-all --die-with-parent --new-session --clearenv --cap-drop ALL
+  --hostname studio --uid 1000 --gid 1000
+  --ro-bind "$RUNTIME_DIR" /
+  --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run --dir /run/user/1000 --chmod 0700 /run/user/1000
+  --ro-bind "$RUNTIME_TMP/passwd" /etc/passwd
+  --ro-bind "$RUNTIME_TMP/group" /etc/group
+  --ro-bind "$RUNTIME_TMP/hostname" /etc/hostname
+  --ro-bind "$RUNTIME_TMP/hosts" /etc/hosts
+  --ro-bind "$RUNTIME_TMP/machine-id" /etc/machine-id
+  --ro-bind "$RUNTIME_TMP/resolv.conf" /etc/resolv.conf
+  --dir /run/linux-studio
+  --ro-bind "$RUNTIME_TMP/proxy.sock" /run/linux-studio/proxy.sock
+  --ro-bind "$RUNTIME_TMP/max-extension-mb" /run/linux-studio/max-extension-mb
+  --ro-bind "$NETWORK_DIR/net_bridge.py" /run/linux-studio/net_bridge.py
+  --ro-bind "$SHARE/launcher/xdg-open" /run/linux-studio/bin/xdg-open   # links open inside Linux Studio (link router)
+  --ro-bind "$RUNTIME_TMP/link-token" /run/linux-studio/link-token
+  --setenv GOTOOLCHAIN local --setenv CARGO_HOME /home/user/.cargo
+  --setenv LS_VERIFY_EXTENSIONS "$([[ "$(get_setting EXTENSION_SIGNATURES check)" == off ]] && echo 0 || echo 1)"
+  --setenv HOME /home/user --setenv USER user --setenv LOGNAME user --setenv SHELL /bin/bash
+  --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv LANG C.UTF-8 --setenv TERM xterm-256color
+  --setenv XDG_RUNTIME_DIR /run/user/1000
+  --setenv PIP_DISABLE_PIP_VERSION_CHECK 1 --setenv NPM_CONFIG_UPDATE_NOTIFIER false
+  --setenv NPM_CONFIG_AUDIT false --setenv NPM_CONFIG_FUND false
+  --setenv HTTPS_PROXY http://127.0.0.1:3128 --setenv https_proxy http://127.0.0.1:3128
+  --setenv HTTP_PROXY http://127.0.0.1:3128 --setenv http_proxy http://127.0.0.1:3128
+  --setenv ALL_PROXY http://127.0.0.1:3128 --setenv all_proxy http://127.0.0.1:3128
+  --setenv NO_PROXY localhost,127.0.0.1,::1 --setenv no_proxy localhost,127.0.0.1,::1
+  --chdir /project-folder
+)
+if [[ $MODE == toolchains-worker ]]; then
+  # Downloader sandbox: writes ONLY to the toolchains folder; no project folder, no editor home.
+  ARGS+=(--tmpfs /home/user --bind "$TOOLCHAINS_DIR" /toolchains
+         --ro-bind "$TOOLCHAINS_SRC/keys" /run/linux-studio/keys
+         --ro-bind "$TOOLCHAINS_SRC/worker.py" /run/linux-studio/worker.py)
+else
+  ARGS+=(--bind "$SANDBOX_HOME" /home/user --bind "$PROJECT_FOLDER" /project-folder
+         --ro-bind "$TOOLCHAINS_DIR" /toolchains)
+fi
+if [[ $MODE == editor ]]; then
+  ARGS+=(--ro-bind "$EDITOR_DIR" /app
+         --ro-bind "$SETTINGS_SRC" /run/linux-studio/locked-settings.json
+         --ro-bind "$INITIAL_SETTINGS" /run/linux-studio/initial-settings.json
+         --ro-bind "$APPLY_SETTINGS" /run/linux-studio/apply_settings.py)
+fi
+if (( GPU )) && [[ -d /dev/dri ]]; then ARGS+=(--dev-bind /dev/dri /dev/dri); fi
+
+# ---------- X11: a private display (Xephyr) so code inside can't see or type into your other windows ----------
+# Xephyr and the clipboard bridge each run in a small sandbox (security review, Phase 6): only the system's
+# programs and settings (/usr, /etc), no home or other disks, a clean environment and no special permissions.
+X_SANDBOX_BASE=(--unshare-all --die-with-parent --new-session --clearenv --cap-drop ALL
+                --ro-bind /usr /usr --ro-bind /etc /etc --symlink usr/bin /bin --symlink usr/sbin /sbin
+                --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run
+                --setenv PATH /usr/bin:/bin --setenv HOME /tmp --setenv LANG C.UTF-8)
+setup_x11() {   # setup_x11 HOST_DISPLAY_NUMBER
+  local h="$1" x_sock="/tmp/.X11-unix/X$1" xauth_src="${XAUTHORITY:-$HOME/.Xauthority}"
+  [[ -S "$x_sock" ]] || die "X11 display :$h has no socket at $x_sock"
+  # Host login cookie as a "wildcard" entry, so it works from inside sandboxes (different computer name).
+  : > "$RUNTIME_TMP/host.xauth"
+  if [[ -f "$xauth_src" ]]; then   # (cookies only ever travel through pipes, never command arguments)
+    XAUTHORITY="$xauth_src" xauth nlist ":$h" 2>/dev/null | sed 's/^..../ffff/' | xauth -f "$RUNTIME_TMP/host.xauth" nmerge - 2>/dev/null || true
+  fi
+  if (( UNSAFE_X11 )); then
+    warn "--unsafe-direct-x11: code inside Linux Studio could read your screen and type into other windows."
+    ARGS+=(--ro-bind "$x_sock" "$x_sock" --setenv DISPLAY ":$h"
+           --ro-bind "$RUNTIME_TMP/host.xauth" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority)
+    return
+  fi
+  command -v Xephyr >/dev/null || die "the 'xserver-xephyr' package is needed for Linux Studio's private X11 display"
+  local n=7; [[ "$h" == 7 ]] && n=8
+  local xdir="$RUNTIME_TMP/x11"; mkdir -m 0700 "$xdir"
+  # A fresh random cookie: only Linux Studio and the bridge can connect to the private display.
+  local cookie; cookie="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+  printf 'add :%s MIT-MAGIC-COOKIE-1 %s\n' "$n" "$cookie" | xauth -f "$RUNTIME_TMP/nested.local" source - 2>/dev/null
+  xauth -f "$RUNTIME_TMP/nested.local" nlist ":$n" | sed 's/^..../ffff/' | xauth -f "$RUNTIME_TMP/nested.xauth" nmerge - 2>/dev/null
+  rm -f "$RUNTIME_TMP/nested.local"
+  # The bridge's X library needs cookies named for its own (fixed) computer name instead of wildcards.
+  printf 'add ls-bridge/unix:%s MIT-MAGIC-COOKIE-1 %s\n' "$n" "$cookie" | xauth -f "$RUNTIME_TMP/bridge.xauth" source - 2>/dev/null
+  local host_cookie=""
+  [[ -f "$xauth_src" ]] && host_cookie="$(XAUTHORITY="$xauth_src" xauth list ":$h" 2>/dev/null | awk '$2=="MIT-MAGIC-COOKIE-1"{print $3; exit}')"
+  [[ -z "$host_cookie" ]] || printf 'add ls-bridge/unix:%s MIT-MAGIC-COOKIE-1 %s\n' "$h" "$host_cookie" | xauth -f "$RUNTIME_TMP/bridge.xauth" source - 2>/dev/null
+  [[ -f "$RUNTIME_TMP/bridge.xauth" ]] || : > "$RUNTIME_TMP/bridge.xauth"
+  local size; size="$(DISPLAY=":$h" XAUTHORITY="$xauth_src" /usr/bin/python3 -c '
+from Xlib import display
+s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.height_in_pixels*0.85)}")' 2>/dev/null || echo 1280x800)"
+  # Xephyr in its own sandbox: sees your display socket and its own socket folder, not your files.
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --bind "$xdir" /tmp/.X11-unix --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --ro-bind "$RUNTIME_TMP/host.xauth" /run/host.xauth --ro-bind "$RUNTIME_TMP/nested.xauth" /run/nested.xauth \
+    --setenv DISPLAY ":$h" --setenv XAUTHORITY /run/host.xauth \
+    Xephyr ":$n" -auth /run/nested.xauth -title "Linux Studio" -resizeable -screen "$size" \
+      -nolisten tcp -nolisten local -no-host-grab \
+      -extension XTEST -extension GLX -extension XVideo -extension MIT-SCREEN-SAVER -extension X-Resource >/dev/null 2>&1 &
+  XEPHYR_PID=$!
+  local i; for i in $(seq 100); do [[ -S "$xdir/X$n" ]] && break; sleep 0.1; done
+  [[ -S "$xdir/X$n" ]] || die "Linux Studio's private X11 display didn't start"
+  # Clipboard bridge in its own sandbox: the two display sockets + your settings folder (read-only).
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --bind "$xdir" /tmp/.X11-unix --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --hostname ls-bridge --ro-bind "$RUNTIME_TMP/bridge.xauth" /run/bridge.xauth --setenv XAUTHORITY /run/bridge.xauth \
+    --ro-bind "$CONFIG_DIR" /run/config --ro-bind "$SHARE/display" /run/display \
+    /usr/bin/python3 /run/display/clipboard_bridge.py --host ":$h" --nested ":$n" --config-dir /run/config &
+  BRIDGE_PID=$!
+  # Window name and icon on your desktop: Xephyr calls its window "Xephyr" with no icon; this short helper labels it
+  # "linux-studio-editor" (the menu entry's StartupWMClass) with the LS icon, then exits. Cosmetic only.
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --hostname ls-bridge --ro-bind "$RUNTIME_TMP/bridge.xauth" /run/bridge.xauth --setenv XAUTHORITY /run/bridge.xauth \
+    --ro-bind "$SHARE/display" /run/display \
+    /usr/bin/python3 /run/display/window_label.py --host ":$h" --title "Linux Studio" --wm-class linux-studio-editor \
+      /run/display/icons/ls-32.png /run/display/icons/ls-64.png /run/display/icons/ls-128.png &
+  # The editor sees ONLY the private display.
+  ARGS+=(--ro-bind "$xdir/X$n" "/tmp/.X11-unix/X$n" --setenv DISPLAY ":$n"
+         --ro-bind "$RUNTIME_TMP/nested.xauth" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority
+         --setenv LS_PRIVATE_X11 1)
+}
+
+EDITOR_FLAGS=()
+# Self-test on an X11 desktop: start the private display too, so its isolation can be checked.
+if [[ -n "${SELFTEST_DIR:-}" && -z "${WAYLAND_DISPLAY:-}" && "${DISPLAY:-}" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
+  setup_x11 "${BASH_REMATCH[1]}"
+fi
+if [[ $MODE == editor ]]; then
+  if [[ -n "${WAYLAND_DISPLAY:-}" && -S "${XDG_RUNTIME_DIR:-/nonexistent}/$WAYLAND_DISPLAY" ]]; then
+    ARGS+=(--ro-bind "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" /run/user/1000/wayland-0 --setenv WAYLAND_DISPLAY wayland-0)
+    EDITOR_FLAGS+=(--ozone-platform=wayland)
+  elif [[ "${DISPLAY:-}" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
+    setup_x11 "${BASH_REMATCH[1]}"
+    EDITOR_FLAGS+=(--ozone-platform=x11)
+  else
+    die "no display found (WAYLAND_DISPLAY or DISPLAY)"
+  fi
+  (( GPU )) || EDITOR_FLAGS+=(--disable-gpu)
+  EDITOR_FLAGS+=(--password-store=basic)
+fi
+
+# Inside the sandbox: start the proxy bridge (127.0.0.1:3128 -> proxy socket), then the real program.
+START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
+  if [ -e /run/linux-studio/apply_settings.py ]; then /usr/bin/python3 /run/linux-studio/apply_settings.py || exit 1
+    # Under Ubuntu'"'"'s restricted AppArmor design nothing inside may use kernel capabilities, so Chromium'"'"'s own
+    # inner sandbox cannot start; Linux Studio'"'"'s main sandbox still isolates the editor (PM decision).
+    /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 || set -- "$@" --no-sandbox
+  fi
+  mkdir -p "$HOME/.config/go/telemetry" && printf "off\n" > "$HOME/.config/go/telemetry/mode"   # Go telemetry off
+  if [ "${LS_PRIVATE_X11:-}" = 1 ] && [ -x /usr/bin/matchbox-window-manager ]; then
+    /usr/bin/matchbox-window-manager -use_titlebar no >/dev/null 2>&1 &   # keeps the editor filling the window
+  fi
+  for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
+  [ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
+  PATH="/run/linux-studio/bin:$PATH"   # Linux Studio'"'"'s xdg-open first: links open in a tab inside Linux Studio
+  export PATH
+  exec "$@"' linux-studio)
+
+# CPU and memory limits for the editor sandbox (and --shell / --self-test). The private display, pop-ups and Settings run
+# outside these limits, so they keep working even if Linux Studio is busy.
+LIMIT=()
+LS_CORES="$(effective_cores)"; LS_MEMORY="$(effective_memory_gb)"; LS_MEMORY_STATE=off
+if [[ $MODE != toolchains-worker ]]; then
+  # taskset: programs inside see (nproc) only the allowed cores. Where systemd can enforce limits, the kernel also
+  # enforces them (security review 2026-11-26, F5/F7): a CPU quota that can't be widened from inside, a cap on the
+  # number of processes (stops "fork bombs"), and for memory a "slow down" level at 90% before the hard cap, plus a
+  # swap cap of a quarter of the memory cap.
+  (( LS_CORES < $(total_cores) )) && LIMIT+=(taskset -c "$(cpu_list "$LS_CORES")")
+  CTRL=" $(systemd_controllers) "; SCOPE=()
+  [[ "$CTRL" == *" pids "* ]] && SCOPE+=(-p TasksMax=4096)
+  [[ "$CTRL" == *" cpu "* ]] && (( LS_CORES < $(total_cores) )) && SCOPE+=(-p "CPUQuota=$(( LS_CORES * 100 ))%")
+  if [[ "$LS_MEMORY" != none ]]; then
+    if [[ "$CTRL" == *" memory "* ]]; then
+      SCOPE+=(-p "MemoryMax=${LS_MEMORY}G" -p "MemoryHigh=$(( LS_MEMORY * 1024 * 9 / 10 ))M"
+              -p "MemorySwapMax=$(( LS_MEMORY * 1024 / 4 ))M")
+      LS_MEMORY_STATE=on
+    else
+      # Said when the editor starts; --self-test and Settings report it themselves (and --shell output stays clean).
+      [[ $MODE == editor ]] && warn "this system can't enforce a memory limit (no systemd user session with memory control), so Linux Studio runs without one"
+      LS_MEMORY_STATE=unsupported
+    fi
+  fi
+  (( ${#SCOPE[@]} )) && LIMIT=(systemd-run --user --scope --quiet --collect "${SCOPE[@]}" -- "${LIMIT[@]}")
+fi
+ARGS+=(--setenv LS_CORES "$LS_CORES" --setenv LS_MEMORY "$LS_MEMORY" --setenv LS_MEMORY_STATE "$LS_MEMORY_STATE")
+
+# Not `exec`, so the cleanup trap still stops the proxy afterwards.
+if [[ $MODE == toolchains-worker ]]; then
+  # The worker gets a fixed PATH and never the installed toolchains first (security review #1).
+  WORKER_START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
+  export PATH=/usr/bin:/bin; exec "$@"' linux-studio)
+  "$BWRAP" "${ARGS[@]}" "${WORKER_START[@]}" /usr/bin/python3 /run/linux-studio/worker.py
+elif [[ $MODE == shell ]]; then
+  if (( ${#SHELL_CMD[@]} )); then
+    "${LIMIT[@]}" "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash "${SHELL_CMD[@]}"
+  else
+    "${LIMIT[@]}" "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash -i
+  fi
+else
+  "${LIMIT[@]}" "$BWRAP" "${ARGS[@]}" "${START[@]}" /app/linux-studio-editor "${EDITOR_FLAGS[@]}" \
+    --user-data-dir /home/user/.config/linux-studio \
+    --extensions-dir /home/user/.linux-studio/extensions \
+    /project-folder
+fi

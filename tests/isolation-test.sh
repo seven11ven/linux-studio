@@ -34,6 +34,7 @@ check "Only loopback network device"         'ip -o link | cut -d: -f2 | tr -d "
 check "No direct internet (bypassing proxy)"   'curl --noproxy "*" -sS -m 5 https://example.com >/dev/null 2>&1 && echo ONLINE || echo OFFLINE' '^OFFLINE$'
 check "Starts in /project-folder"            'pwd'                                   '^/project-folder$'
 check "Prompt hides leading slash"           'cd /project-folder && mkdir -p apples && cd apples && . /etc/linux-studio/bashrc && __ls_path' '^project-folder/apples$'
+check "Terminal (login shell) finds Linux Studio's xdg-open" 'bash -lic "command -v xdg-open" 2>/dev/null' '^/run/linux-studio/bin/xdg-open$'
 check "No GPU device without --gpu"          'ls /dev/dri 2>&1 || true'              'No such file'
 check "Editor folder empty in shell mode"    'ls -A /app | wc -l'                    '^0$'
 check "Capabilities dropped"                 'grep CapEff /proc/self/status'         '0000000000000000'

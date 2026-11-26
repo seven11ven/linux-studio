@@ -97,6 +97,7 @@ jobs:
             git apply -p1 "$p"
           done
           grep -q "Linux Studio: a sign-in page may hand" src/vs/platform/browserView/electron-main/browserSessionPermissions.ts
+          grep -q "Linux Studio: a page may go full screen" src/vs/platform/browserView/electron-main/browserView.ts
 
       - name: Install packages
         working-directory: vscode

@@ -1,0 +1,13 @@
+# Linux Studio: settings for every interactive bash shell inside the sandbox.
+# Sourced from /etc/bash.bashrc (added by scripts/build-runtime.sh).
+
+# Prompt shows the path WITHOUT the leading "/", so the project folder reads
+# "project-folder/apples $" instead of "/project-folder/apples $".
+__ls_path() { local p="${PWD#/}"; printf '%s' "${p:-/}"; }
+PS1='$(__ls_path) \$ '
+
+# Stop language tools from contacting the internet on their own.
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export NPM_CONFIG_UPDATE_NOTIFIER=false
+export NPM_CONFIG_AUDIT=false
+export NPM_CONFIG_FUND=false

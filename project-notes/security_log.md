@@ -6,6 +6,16 @@ Earlier reviews (Phases 2 to 6) are recorded in the changelogs under `project-ch
 
 ---
 
+## 2026-11-26: dev6 notes (no separate review yet)
+- **Web page full screen:** the in-app browser always lets pages go full screen without asking. Before this fix, that made the whole editor window full screen,
+  which could hide the interface, trap the keyboard, or let a page imitate the editor ("fake screens").
+  - **Fix (PM, option B):** page full screen stays inside its tab, and ends when focus leaves the page or its tab is hidden.
+- **Short-lived editor command (`--open-url`)** gets `--no-sandbox` only where the editor itself already runs that way (`LS_EDITOR_NO_SANDBOX`). The process
+  only hands a link to the running editor and exits.
+- Both changes go to jake-lockley in the next review.
+
+---
+
 ## 2026-11-26: dev5 (link router, browser patch, refused notice, CPU and memory limits, fonts)
 - **Reviewed by:** jake-lockley (Claude Opus 5.5) · **Fixes by:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
 - **Verdict:** nothing reaches the host desktop. Two Medium issues in the link router were fixed before dev5 shipped.

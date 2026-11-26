@@ -115,6 +115,8 @@ def main():
     args = ap.parse_args()
     icon = net_wm_icon(args.icons)
     d = display.Display(args.host)
+    # The window can close while we label it (cosmetic helper): ignore X errors instead of printing them.
+    d.set_error_handler(lambda *_a, **_k: None)
     deadline = time.time() + 10
     while time.time() < deadline:
         wins = find_windows(d, args.title)

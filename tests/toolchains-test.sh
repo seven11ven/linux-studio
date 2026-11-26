@@ -35,6 +35,8 @@ out="$(shell 'node --version')"
 worker "{\"op\":\"use\",\"tool\":\"node\",\"version\":\"$NODE_V\"}" "{\"op\":\"use\",\"tool\":\"go\",\"version\":\"$GO_V\"}" >/dev/null
 out="$(shell 'node --version; go version')"
 [[ "$out" == "v$NODE_V"$'\n'"go version go$GO_V linux/amd64" ]] && ok "Editor sandbox uses the chosen versions" || bad "Chosen versions used" "$out"
+out="$(shell 'bash -lic "node --version; go version" 2>/dev/null')"   # the editor's terminal is a login shell
+[[ "$out" == "v$NODE_V"$'\n'"go version go$GO_V linux/amd64" ]] && ok "Editor terminal (login shell) uses the chosen versions" || bad "Chosen versions in login shell" "$out"
 
 out="$(shell 'go env GOTELEMETRY GOTOOLCHAIN')"
 [[ "$out" == $'off\nlocal' ]] && ok "Go telemetry off, no automatic Go downloads" || bad "Go telemetry off" "$out"

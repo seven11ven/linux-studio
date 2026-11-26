@@ -8,10 +8,10 @@ T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 pass=0; fail=0; ok(){ echo "PASS  $1"; pass=$((pass+1)); }; bad(){ echo "FAIL  $1${2:+ (got: $2)}"; fail=$((fail+1)); }
 KEY="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"; echo "$KEY" > "$T/key"
 mkdir -p "$T/app/bin"
-printf '#!/bin/sh\necho "$4" > /tmp/out/opened\n' > "$T/app/bin/linux-studio-editor"; chmod +x "$T/app/bin/linux-studio-editor"
+printf '#!/bin/bash\necho "${@: -1}" > /tmp/out/opened; echo "$*" > /tmp/out/args\n' > "$T/app/bin/linux-studio-editor"; chmod +x "$T/app/bin/linux-studio-editor"
 run() {   # run LINK...: the shim inside a small sandbox with the stand-in editor at /app and the session key
-  mkdir -p "$T/out"; rm -f "$T/out/opened"
-  bwrap --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --ro-bind /etc /etc \
+  mkdir -p "$T/out"; rm -f "$T/out/opened" "$T/out/args"
+  bwrap ${NOSB:+--setenv LS_EDITOR_NO_SANDBOX 1} --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --ro-bind /etc /etc \
     --tmpfs /tmp --bind "$T/out" /tmp/out --ro-bind "$T/app" /app --dev /dev --proc /proc \
     --dir /run/linux-studio --ro-bind "$T/key" /run/linux-studio/link-token \
     --ro-bind "$ROOT/src/launcher/xdg-open" /tmp/xdg-open bash /tmp/xdg-open "$@" 2>"$T/out/err"
@@ -33,6 +33,9 @@ done
 [[ "$(run 'https://a.com' 'https://b.com')" != 0 && -z "$(opened)" ]] && ok "Refused: more than one link" || bad "two links"
 [[ "$(run "https://example.com/$(head -c 9000 /dev/zero | tr '\0' a)")" != 0 && -z "$(opened)" ]] && ok "Refused: overlong link" || bad "overlong"
 [[ "$(run $'https://example.com/\nx')" != 0 && -z "$(opened)" ]] && ok "Refused: link with a line break" || bad "control chars"
+[[ "$(run 'https://example.com/')" == 0 && "$(cat "$T/out/args")" != *--no-sandbox* ]] && ok "No --no-sandbox where the editor kept its inner sandbox" || bad "no flag" "$(cat "$T/out/args")"
+NOSB=1; [[ "$(run 'https://example.com/')" == 0 && "$(cat "$T/out/args")" == *" --no-sandbox --open-url "* ]] \
+  && ok "--no-sandbox passed when the editor runs without its inner sandbox (Ubuntu 24.04+/Mint)" || bad "flag" "$(cat "$T/out/args")"; NOSB=
 rm "$T/key"; touch "$T/key"
 [[ "$(run 'https://example.com/')" != 0 && -z "$(opened)" ]] && ok "Refused: no session key available" || bad "no key"
 echo "$KEY" > "$T/key"
