@@ -27,3 +27,13 @@
   - remove-data 20/20, x11-clipboard 11/11, vsce-sign 15/15
 - **Real editor install** (test sandbox): genuine signature → Success; wrong key → refused, nothing installed; Don't check → installed without the check.
 - **Pending:** the PM's Mint test (Settings sections, pop-up on top, extension install, Remove my data refusing while open).
+
+## Real-machine test (PM, Linux Mint, X11, 14:46 UTC)
+- **Settings:** Extension signatures, Largest extension to check (the PM chose 1 GB), Your data, and the flatter corners all shown as designed.
+- **Extension installs:** working, with no "Install Anyway" prompt, so the signature check runs and passes.
+- **Approval pop-up:** stays on top of the Linux Studio window.
+- **Remove my data:** removed the PM's extensions; the project folder was untouched.
+- **Follow-up (dev5):**
+  - After Remove in Approved websites, the PM saw no new pop-up. In the Codespace the proxy behaves correctly: Remove cuts open connections within 5 s,
+    and the next request asks again. The likely cause is the silent "question not answered, refused until restart" case left over from dev3's hidden pop-up.
+  - dev5 adds a "Connection refused" notice and Block/Remove explanations (approved).

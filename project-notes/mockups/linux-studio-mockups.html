@@ -84,6 +84,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 .gaps{margin:0;padding-left:20px;display:grid;gap:10px;font-size:.92rem}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:calc(6px * var(--rk));font-size:.88rem}
 @media (prefers-reduced-motion:reduce){.progress i{transition:none}}
+.rm-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px;z-index:50}
 </style>
 
 <div class="wrap">
@@ -142,7 +143,17 @@ project-folder/apples</div></div>
         </div>
       </div>
     </div>
+    <div class="win" style="margin-top:18px;max-width:460px">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Connection refused</span></div>
+      <div class="body" style="gap:12px">
+        <div><span class="pill bad" id="rf-pill">Refused</span> <span class="pill">New: notice</span></div>
+        <p style="margin:0" id="rf-text"></p>
+        <div class="actions" id="rf-actions"></div>
+        <div class="row"><button class="btn sm" id="rf-switch">Preview: the other kind of refusal</button></div>
+      </div>
+    </div>
     <aside class="notes"><h3>What happens</h3><ul>
+      <li><b>New: "Connection refused" notice</b> (small window below). <b>Open Approved websites…</b> opens that window with the site's row highlighted and scrolled into view (nothing changes until you click Allow or Remove). Shown when something inside Linux Studio is refused <i>without</i> a pop-up: because you <b>blocked</b> the site, or because an earlier pop-up for it was <b>closed or not answered</b>. It's shown at most once per site until Linux Studio restarts, never takes keyboard focus, and closes by itself after 20 seconds. Its buttons are locked for 1 second, like the pop-up.</li>
       <li>Appears as a small window on your desktop, drawn by the host side. The sandbox can't click it or fake it.</li>
       <li>Allow once lasts until Linux Studio closes.</li>
       <li>If you ignore it for 60 seconds, the request is denied.</li>
@@ -158,10 +169,12 @@ project-folder/apples</div></div>
         <div class="row" style="justify-content:space-between"><h2>Approved websites</h2><span class="net"><span class="led" id="net-led"></span><span id="net-txt">Network on: approved sites only</span></span></div>
         <div class="row"><input type="text" id="al-new" placeholder="Add a site, e.g. registry.npmjs.org" aria-label="Site to allow"><button class="btn primary" id="al-add">Allow</button></div>
         <div class="tablewrap"><table><thead><tr><th>Website</th><th>Status</th><th>Last used</th><th></th></tr></thead><tbody id="al-rows"></tbody></table></div>
+        <p class="hint" style="margin:0"><b>Block</b>: refuse without asking. <b>Remove</b>: forget the site, so you're asked again next time.</p>
         <div class="row" style="justify-content:space-between"><p class="hint">Saved outside the sandbox. Extensions can't read or change this list.</p><button class="btn" id="net-toggle">Turn network off</button></div>
       </div>
     </div>
     <aside class="notes"><h3>What happens</h3><ul>
+      <li><b>New:</b> a short line under the list explains the two buttons, and each button has a tooltip. <b>Block</b> = refuse without asking (you'll get the "Connection refused" notice once per session). <b>Remove</b> = forget the site, so you'll be asked again next time.</li>
       <li>Opened from the Linux Studio menu entry “Network &amp; privacy”. It's a separate host window, not part of the editor.</li>
       <li>Blocked sites stay listed so repeat requests are refused silently.</li>
       <li>“Turn network off” blocks everything, including approved sites, until you turn it back on.</li></ul></aside>
@@ -251,14 +264,20 @@ project-folder/apples</div></div>
         <div class="field">
           <label>Your data</label>
           <div class="row"><button class="btn danger" id="rm-open">Remove my Linux Studio data…</button></div>
-          <div class="callout warn" id="rm-card" hidden style="display:grid;gap:10px">
-            <b>Remove your Linux Studio data?</b>
-            <span>Close Linux Studio first. Choose what to delete from this computer. This can't be undone.</span>
-            <label style="font-weight:400"><input type="checkbox" checked> Extensions, editor settings and logins (for example Claude's)</label>
-            <label style="font-weight:400"><input type="checkbox" checked> Toolchains you installed</label>
-            <label style="font-weight:400"><input type="checkbox"> My Settings choices and approved websites</label>
-            <span>Your project folder is <b>never</b> touched. It stays at <span class="mono">~/LinuxStudio/project-folder</span>.</span>
-            <div class="actions"><button class="btn" id="rm-cancel">Cancel</button><button class="btn danger" id="rm-go">Remove selected</button></div>
+          <div class="rm-backdrop" id="rm-card" hidden>
+            <div class="win" role="dialog" aria-modal="true" aria-labelledby="rm-title" style="max-width:480px;width:100%">
+              <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Remove your data</span></div>
+              <div class="body" style="gap:12px">
+                <div><span class="pill warn">Can't be undone</span></div>
+                <b id="rm-title">Are you sure you want to remove your Linux Studio data?</b>
+                <span>Close Linux Studio first. Choose what to delete from this computer.</span>
+                <label style="font-weight:400"><input type="checkbox" checked> Extensions, editor settings and logins (for example Claude's)</label>
+                <label style="font-weight:400"><input type="checkbox" checked> Toolchains you installed</label>
+                <label style="font-weight:400"><input type="checkbox"> My Settings choices and approved websites</label>
+                <span>Your project folder is <b>never</b> touched. It stays at <span class="mono">~/LinuxStudio/project-folder</span>.</span>
+                <div class="actions"><button class="btn" id="rm-cancel">Cancel</button><button class="btn danger" id="rm-go">Remove selected</button></div>
+              </div>
+            </div>
           </div>
         </div>
         <p class="hint">Saved outside the sandbox, so nothing inside Linux Studio can change these settings. Clipboard changes apply immediately; the signature setting applies the next time Linux Studio starts.</p>
@@ -269,7 +288,7 @@ project-folder/apples</div></div>
       <li><b>Don't check</b>: extensions install without the check, with the warning shown.</li>
       <li><b>New: CPU and memory.</b> CPU cores: <b>all but one by default</b> (All, or down to 1, can be chosen); programs inside see only those cores. Memory limit: <b>75% of your computer's memory by default</b> (No limit, or lower caps, can be chosen). If Linux Studio needs more than the cap, Linux stops the biggest program <i>inside</i> Linux Studio (often a build or an extension) instead of slowing your whole computer; the note turns into a warning when a limit is chosen. Choices are built from your real core count and memory. Applies at the next start. If your system can't enforce a memory limit, Linux Studio starts without it and says so.</li>
       <li><b>New: Largest extension to check</b> (256 MB, 512 MB default, 1 GB, 1.5 GB). The whole download has to be held in memory to check its signature, so this cap stops an oversized download from exhausting memory. Bigger extensions are refused with Install Anyway. Hidden while <b>Don't check</b> is chosen. Applies at the next start.</li>
-      <li><b>New: Remove my Linux Studio data.</b> Uninstalling never deletes your data, so this is how you clear it yourself. It refuses while Linux Studio is open, lets you pick what goes, and never touches your project folder. The same is available as <span class="mono">linux-studio --remove-my-data</span>, which asks you to type <span class="mono">remove</span> to confirm.</li>
+      <li><b>New: Remove my Linux Studio data.</b> The confirmation is its own <b>pop-up window</b> in front of Settings (Settings can't be used until you answer). Cancel is the default; Remove selected is red and unlocks after 1 second. Uninstalling never deletes your data, so this is how you clear it yourself. It refuses while Linux Studio is open, lets you pick what goes, and never touches your project folder. The same is available as <span class="mono">linux-studio --remove-my-data</span>, which asks you to type <span class="mono">remove</span> to confirm.</li>
       <li>Opened from the menu entry “Settings” or <span class="mono">linux-studio --settings</span>. A desktop window, outside the sandbox.</li>
       <li><b>Paste only</b> (default): your clipboard reaches Linux Studio only at the moment you really paste in its window. Nothing inside can read it in the background, and copies made inside stay inside.</li>
       <li><b>Both directions</b>: works like a normal app, with the warning shown.</li>
@@ -315,10 +334,24 @@ const reqs=[['api.anthropic.com','12:41:07'],['open-vsx.org','12:43:52'],['telem
 $$('[data-d]').forEach(b=>b.onclick=()=>{$('#pr-result').textContent=b.dataset.d+': '+$('#pr-domain').textContent});
 $('#pr-next').onclick=()=>{ri=(ri+1)%reqs.length;$('#pr-domain').textContent=reqs[ri][0];$('#pr-time').textContent=reqs[ri][1];$('#pr-result').textContent=''};
 
+// 2b refused notice
+let rfKind='blocked';
+function drawRf(){const host='api.anthropic.com';
+  $('#rf-text').innerHTML = rfKind==='blocked'
+    ? 'Linux Studio refused a connection to <b class="mono"></b> because you <b>blocked</b> this site.'
+    : 'Linux Studio refused a connection to <b class="mono"></b> because the earlier question about it was <b>closed or not answered</b>. It won\'t ask again until Linux Studio restarts.';
+  $('#rf-text').querySelector('.mono').textContent=host;
+  $('#rf-actions').innerHTML = rfKind==='blocked'
+    ? '<button class="btn">Dismiss</button><button class="btn primary">Open Approved websites…</button>'
+    : '<button class="btn">Dismiss</button><button class="btn primary">Ask me now</button>';
+  const [d,a]=$('#rf-actions').querySelectorAll('button');
+  d.onclick=()=>toast('Notice dismissed');
+  a.onclick=()=>{if(rfKind==='blocked'){document.getElementById('tab-allow').click();const r=[...document.querySelectorAll('#al-rows tr')].find(t=>t.cells[0].textContent===host);if(r){r.style.outline='2px solid var(--accent)';r.scrollIntoView({block:'nearest'});}toast('Approved websites opened with '+host+' highlighted');}else toast('The approval pop-up appears now for '+host)}}
+$('#rf-switch').onclick=()=>{rfKind=rfKind==='blocked'?'unanswered':'blocked';drawRf()};drawRf();
 // 3
 let sites=[{d:'api.anthropic.com',s:'ok',u:'Today 12:41'},{d:'open-vsx.org',s:'ok',u:'Today 12:43'},{d:'registry.npmjs.org',s:'ok',u:'Yesterday'},{d:'telemetry.example-analytics.io',s:'bad',u:'Today 12:44'}];
 function drawSites(){$('#al-rows').innerHTML='';sites.forEach((x,i)=>{const tr=document.createElement('tr');
-  tr.innerHTML=`<td class="mono"></td><td><span class="pill ${x.s}">${x.s==='ok'?'Allowed':'Blocked'}</span></td><td>${x.u}</td><td style="text-align:right"><button class="btn sm">${x.s==='ok'?'Block':'Allow'}</button> <button class="btn sm danger">Remove</button></td>`;
+  tr.innerHTML=`<td class="mono"></td><td><span class="pill ${x.s}">${x.s==='ok'?'Allowed':'Blocked'}</span></td><td>${x.u}</td><td style="text-align:right"><button class="btn sm" title="${x.s==='ok'?'Refuse this site without asking':'Allow this site without asking'}">${x.s==='ok'?'Block':'Allow'}</button> <button class="btn sm danger" title="Forget this site: you'll be asked again next time">Remove</button></td>`;
   tr.cells[0].textContent=x.d;const [t,r]=tr.querySelectorAll('button');
   t.onclick=()=>{x.s=x.s==='ok'?'bad':'ok';drawSites()};r.onclick=()=>{sites.splice(i,1);drawSites();toast('Removed '+x.d)};$('#al-rows').append(tr)})}
 drawSites();
@@ -353,6 +386,7 @@ function setSig(m){$('#sig-on').setAttribute('aria-pressed',m==='on');$('#sig-of
   $('#sig-on').classList.toggle('primary',m==='on');$('#sig-off').classList.toggle('primary',m==='off');
   $('#sig-note').textContent=sigNotes[m];$('#sig-note').classList.toggle('warn',m==='off');$('#size-row').hidden=$('#size-note').hidden=(m==='off');toast(m==='on'?'Extension signatures: checked (next start)':'Extension signatures: not checked (next start)')}
 $('#rm-open').onclick=()=>{$('#rm-card').hidden=false};$('#rm-cancel').onclick=()=>{$('#rm-card').hidden=true};
+$('#rm-card').onclick=e=>{if(e.target.id==='rm-card')$('#rm-card').hidden=true};
 $('#rm-go').onclick=()=>{$('#rm-card').hidden=true;toast('Removed the selected Linux Studio data (preview only)')};
 const resBase='Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in its terminal. Programs inside see only the cores you allow, so builds don\'t try to use more. Applies the next time Linux Studio starts.';
 function resNote(){/* default has a limit */const mem=$('#res-mem').value!=='0';$('#res-note').textContent=resBase+(mem?' ⚠ With a memory limit, if Linux Studio needs more than '+$('#res-mem').selectedOptions[0].textContent+', the biggest program inside it (often a build or an extension) is stopped. Save your work often.':'');$('#res-note').classList.toggle('warn',mem)}

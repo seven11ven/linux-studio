@@ -85,3 +85,17 @@ Confirmed safe:
 - The PM confirmed nothing Claude-specific should be built in. The PM's hands-on use already answered the question: it works under the normal rules,
   using `api.anthropic.com` and `github.com` (when cloning) through the approval pop-up. The hidden pop-up it revealed is fixed in dev4.
 - It's removed as a separate step. **Next order:** dev4 → dev5 (CPU and memory settings) → Phase 7 (game development support).
+
+## Update 14:46 UTC: dev4 delivered and tested by the PM; dev5 scope approved
+- dev4 was delivered through a one-time private link (closed after download). The PM's checks passed: Settings, extension installs (signature check), pop-up on top,
+  and Remove my data.
+- **Investigated "no pop-up after Remove":** the proxy test shows Remove closes an open tunnel in 5.0 s and the next connection asks again. The silent case is a site
+  refused this session after an unanswered pop-up, or a blocked site. Hence the new notice.
+- **dev5 scope (all mockups approved by the PM):**
+  - CPU and memory settings (defaults: all cores but one, 75% of memory)
+  - web links open in the Integrated Browser tab
+  - extension sign-in callbacks tested (Cline example)
+  - Remove-data confirmation as its own pop-up window
+  - "Connection refused" notice (blocked or unanswered; at most once per site per session; no focus; 20 s; Open Approved websites highlights the row; Ask me now)
+  - Block/Remove explanation and tooltips in Approved websites
+- **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager
