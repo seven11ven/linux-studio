@@ -89,7 +89,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 <div class="wrap">
   <header>
     <h1>Linux Studio mockups</h1>
-    <p class="lede">Screens for review before code is written. Screen 5 (Settings) is new and awaiting approval. Everything here is clickable, and all names, sites and versions are examples.</p>
+    <p class="lede">Screens for review before code is written. Screen 5 (Settings) has a new <b>Extension signatures</b> section awaiting approval. Everything here is clickable, and all names, sites and versions are examples.</p>
   </header>
 
   <nav class="tabs" role="tablist">
@@ -198,6 +198,14 @@ project-folder/apples</div></div>
           <div class="callout" id="cb-note"></div>
         </div>
         <div class="field">
+          <label>Extension signatures</label>
+          <div class="row" role="radiogroup" aria-label="Extension signatures">
+            <button class="btn" id="sig-on" aria-pressed="true">Check signatures</button>
+            <button class="btn" id="sig-off" aria-pressed="false">Don't check</button>
+          </div>
+          <div class="callout" id="sig-note"></div>
+        </div>
+        <div class="field">
           <label>Display</label>
           <dl class="kv">
             <dt>Mode</dt><dd id="disp-mode">Private X11 window <span class="pill ok">Isolated</span></dd>
@@ -209,10 +217,26 @@ project-folder/apples</div></div>
           <label>More</label>
           <div class="row"><button class="btn" id="go-sites">Approved websites…</button><button class="btn" id="go-tc">Toolchains…</button></div>
         </div>
-        <p class="hint">Saved outside the sandbox, so nothing inside Linux Studio can change these settings. Clipboard changes apply immediately.</p>
+        <div class="field">
+          <label>Your data</label>
+          <div class="row"><button class="btn danger" id="rm-open">Remove my Linux Studio data…</button></div>
+          <div class="callout warn" id="rm-card" hidden style="display:grid;gap:10px">
+            <b>Remove your Linux Studio data?</b>
+            <span>Close Linux Studio first. Choose what to delete from this computer. This can't be undone.</span>
+            <label style="font-weight:400"><input type="checkbox" checked> Extensions, editor settings and logins (for example Claude's)</label>
+            <label style="font-weight:400"><input type="checkbox" checked> Toolchains you installed</label>
+            <label style="font-weight:400"><input type="checkbox"> My Settings choices and approved websites</label>
+            <span>Your project folder is <b>never</b> touched. It stays at <span class="mono">~/LinuxStudio/project-folder</span>.</span>
+            <div class="actions"><button class="btn" id="rm-cancel">Cancel</button><button class="btn danger" id="rm-go">Remove selected</button></div>
+          </div>
+        </div>
+        <p class="hint">Saved outside the sandbox, so nothing inside Linux Studio can change these settings. Clipboard changes apply immediately; the signature setting applies the next time Linux Studio starts.</p>
       </div>
     </div>
     <aside class="notes"><h3>What happens</h3><ul>
+      <li><b>New: Extension signatures.</b> <b>Check signatures</b> (default): every extension downloaded from Open VSX is checked against Open VSX's signature before it installs. A missing, wrong or tampered signature stops the install and shows the editor's prompt, the same kind of box you saw, with <b>Install Anyway</b> to override.</li>
+      <li><b>Don't check</b>: extensions install without the check, with the warning shown.</li>
+      <li><b>New: Remove my Linux Studio data.</b> Uninstalling never deletes your data, so this is how you clear it yourself. It refuses while Linux Studio is open, lets you pick what goes, and never touches your project folder. The same is available as <span class="mono">linux-studio --remove-my-data</span>, which asks you to type <span class="mono">remove</span> to confirm.</li>
       <li>Opened from the menu entry “Settings” or <span class="mono">linux-studio --settings</span>. A desktop window, outside the sandbox.</li>
       <li><b>Paste only</b> (default): your clipboard reaches Linux Studio only at the moment you really paste in its window. Nothing inside can read it in the background, and copies made inside stay inside.</li>
       <li><b>Both directions</b>: works like a normal app, with the warning shown.</li>
@@ -290,7 +314,16 @@ $$('#tc-side button').forEach(b=>b.onclick=()=>{$$('#tc-side button').forEach(x=
 drawTc('installed');
 
 // 5
-const notes={paste:'Paste only: text you copy elsewhere reaches Linux Studio only when you paste inside its window (Ctrl+V, Shift+Insert or middle-click). Code inside can\'t read your clipboard in the background, and anything copied inside stays inside.',
+const sigNotes={on:'Check signatures: before an extension installs, Linux Studio checks it against the signature Open VSX published for it. If the signature is missing, wrong or doesn\'t match the download, the install stops and the editor asks you; you can still choose "Install Anyway".',
+ off:'Don\'t check: extensions install without checking that the download is exactly what Open VSX published. ⚠ A tampered download would not be noticed. Downloads still only come from open-vsx.org over HTTPS.'};
+function setSig(m){$('#sig-on').setAttribute('aria-pressed',m==='on');$('#sig-off').setAttribute('aria-pressed',m==='off');
+  $('#sig-on').classList.toggle('primary',m==='on');$('#sig-off').classList.toggle('primary',m==='off');
+  $('#sig-note').textContent=sigNotes[m];$('#sig-note').classList.toggle('warn',m==='off');toast(m==='on'?'Extension signatures: checked (next start)':'Extension signatures: not checked (next start)')}
+$('#rm-open').onclick=()=>{$('#rm-card').hidden=false};$('#rm-cancel').onclick=()=>{$('#rm-card').hidden=true};
+$('#rm-go').onclick=()=>{$('#rm-card').hidden=true;toast('Removed the selected Linux Studio data (preview only)')};
+$('#sig-on').onclick=()=>setSig('on');$('#sig-off').onclick=()=>setSig('off');
+$('#sig-note').textContent=sigNotes.on;$('#sig-on').classList.add('primary');
+const notes={paste:'Paste only: text you copy elsewhere reaches Linux Studio only when you paste inside its window with the keyboard (Ctrl+V or Shift+Insert), once per paste. Code inside can\'t read your clipboard in the background, highlighted text is never shared, and anything copied inside stays inside.',
  both:'Both directions: copy and paste work like a normal app. ⚠ Code inside Linux Studio, such as an extension, could read anything you copy elsewhere, including passwords.'};
 function setCb(m){$('#cb-paste').setAttribute('aria-pressed',m==='paste');$('#cb-both').setAttribute('aria-pressed',m==='both');
   $('#cb-paste').classList.toggle('primary',m==='paste');$('#cb-both').classList.toggle('primary',m==='both');

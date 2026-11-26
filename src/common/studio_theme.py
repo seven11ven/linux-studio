@@ -7,6 +7,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
+APP_ICON = "io.github.seven11ven.linuxstudio"   # matches Icon= in the menu entry
+
 PALETTES = {
     "dark": dict(bg="#0f1412", surface="#171e1b", panel="#1d2522", ink="#e3ebe7", muted="#97a59f", line="#2c3732",
                  accent="#4cc296", accent_hover="#5fd3a6", accent_ink="#06130e", accent_soft="#1c3a2f",
@@ -103,6 +105,9 @@ _provider = None
 def apply_theme(widget, scheme=None):
     """Apply the Linux Studio style (light or dark, following the desktop) to every window on this display."""
     global _provider
+    # Every Linux Studio window shows the Linux Studio icon (installed in the system icon theme by the package),
+    # instead of the desktop's generic "unknown app" icon.
+    Gtk.Window.set_default_icon_name(APP_ICON)
     if _provider is None:
         _provider = Gtk.CssProvider()
         _provider.load_from_data(css_for(scheme or preferred_scheme()))

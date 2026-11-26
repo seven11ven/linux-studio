@@ -46,6 +46,14 @@ def main():
                   file=sys.stderr)
             user = {}
     merged = {**initial, **user, **locked}
+    # In the private X11 window your desktop already draws minimise/maximise/close. The editor's own copies would be
+    # a second set, and its "minimise" could hide the editor inside the private display with no taskbar to bring it
+    # back. So they are hidden there. Anywhere else (Wayland) the editor's buttons are the only ones, so the setting is
+    # removed again (it must never carry over from an X11 session).
+    if os.environ.get("LS_PRIVATE_X11") == "1":
+        merged["window.controlsStyle"] = "hidden"
+    else:
+        merged.pop("window.controlsStyle", None)
     fd, tmp = tempfile.mkstemp(dir=folder, prefix=".settings.", suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(merged, f, indent=2, sort_keys=True)

@@ -319,6 +319,13 @@ s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.hei
     --ro-bind "$CONFIG_DIR" /run/config --ro-bind "$SHARE/display" /run/display \
     /usr/bin/python3 /run/display/clipboard_bridge.py --host ":$h" --nested ":$n" --config-dir /run/config &
   BRIDGE_PID=$!
+  # Window name and icon on your desktop: Xephyr calls its window "Xephyr" with no icon; this short helper labels it
+  # "linux-studio-editor" (the menu entry's StartupWMClass) with the LS icon, then exits. Cosmetic only.
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --hostname ls-bridge --ro-bind "$RUNTIME_TMP/bridge.xauth" /run/bridge.xauth --setenv XAUTHORITY /run/bridge.xauth \
+    --ro-bind "$SHARE/display" /run/display \
+    /usr/bin/python3 /run/display/window_label.py --host ":$h" --title "Linux Studio" --wm-class linux-studio-editor \
+      /run/display/icons/ls-32.png /run/display/icons/ls-64.png /run/display/icons/ls-128.png &
   # The editor sees ONLY the private display.
   ARGS+=(--ro-bind "$xdir/X$n" "/tmp/.X11-unix/X$n" --setenv DISPLAY ":$n"
          --ro-bind "$RUNTIME_TMP/nested.xauth" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority

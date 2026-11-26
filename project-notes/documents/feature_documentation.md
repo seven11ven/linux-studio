@@ -23,7 +23,7 @@ Status key: ✅ built and tested · 🚧 in progress · 📋 planned
 | Private X11 display | ✅ | On X11 desktops Linux Studio runs in its own isolated window (Xephyr, no fake keyboard), so code inside can't read your screen or type into other windows. Wayland is used as-is. |
 | Clipboard setting | ✅ | **Paste only** (default): your clipboard reaches Linux Studio only when you really paste in its window, and copies inside stay inside. **Both directions:** like a normal app, with a warning. Text only. |
 | Settings window | ✅ | `linux-studio --settings` or the menu entry. Kept outside the sandbox. |
-| Consistent look | ✅ | Every Linux Studio window follows light or dark. Linux Studio icon and watermark, a Linux Studio welcome walkthrough, and the unused AI panel hidden. |
+| Consistent look | ✅ | Every Linux Studio window follows light or dark. Linux Studio icon on every window, watermark, a Linux Studio welcome walkthrough, and the unused AI panel hidden. |
 | Approved-websites proxy | ✅ | Extensions and terminal tools can reach only exact websites you approve, over HTTPS only. Your computer, home network and cloud metadata addresses are never reachable. No traffic is logged. |
 | Network approval pop-up | ✅ | A desktop pop-up asks Deny, Allow once, Always allow or Block all new sites. It shows one at a time, has a 1-second button delay, and treats no answer as deny. |
 | Approved websites window | ✅ | `linux-studio --network`: add, block, allow or remove sites, and turn the network on or off. Changes apply immediately. |
@@ -42,6 +42,6 @@ Status key: ✅ built and tested · 🚧 in progress · 📋 planned
 - Websites you approve can see your public IP address.
 - Some unused Copilot code remains inside the editor's core files. It's switched off and can't reach any address.
 - Saved extension logins are stored obscured but not encrypted, in Linux Studio's private folder.
-- On X11 the editor appears as one window inside your desktop (Xephyr). Its taskbar icon may show as "Xephyr" rather than the Linux Studio icon.
+- On X11 the editor appears as one window inside your desktop (Xephyr), labelled as Linux Studio with its icon. Use your desktop's window buttons; the editor's own are hidden there.
 - In Both-directions clipboard mode, code inside Linux Studio can read what you copy elsewhere.
 - The editor engine tries to contact Google (`redirector.gvt1.com`, spellchecker dictionaries) at start-up. It's pre-blocked silently, and can be allowed in the websites window.

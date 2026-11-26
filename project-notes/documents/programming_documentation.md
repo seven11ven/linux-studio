@@ -367,6 +367,16 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
 - **Unused AI side panel hidden:** VS Code's built-in welcome is replaced by a short **Get started with Linux Studio** walkthrough.
   It's data only, with no code.
 - **Light theme terminal:** now light, so its hint text is readable.
+- **One set of window buttons (2026-11-26):** in the private X11 window your desktop already draws minimise, maximise and close. The editor's own
+  copies are hidden there (`window.controlsStyle: hidden`, set by `src/launcher/apply_settings.py` only when `LS_PRIVATE_X11=1`). On Wayland the
+  setting is removed again, because there the editor's buttons are the only ones. Reason: the editor's "minimise" could hide it inside the private
+  display, where there is no taskbar to bring it back.
+- **Linux Studio icon on every window (2026-11-26):**
+  - The small GTK windows (Settings, Approved websites, Toolchains, the pop-up, first-run) use the installed LS icon (`APP_ICON` in
+    `src/common/studio_theme.py`).
+  - The main window is Xephyr's, which calls itself "Xephyr" with no icon. `src/display/window_label.py` runs right after Xephyr starts, in its own
+    sandbox that sees only your display socket. It sets the window's class to `linux-studio-editor` (the menu entry's `StartupWMClass`) and its icon
+    (`src/display/icons/ls-*.png`), then exits. It's cosmetic: if it fails, Linux Studio still works.
 
 ## Phase 1 research results (2026-11-25)
 

@@ -92,3 +92,14 @@ Also verified: the reviewer was right that several `-extension` flags work toget
 - The PM installed dev2-2 on Linux Mint (X11). `linux-studio --self-test`: **10/10 passed**, including the private X11 display checks.
 - **Next:** the PM opens the editor from the menu and tries pasting, then the Claude Code compatibility test.
 - **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager
+
+## Update 08:37 UTC: dev3, one set of window buttons and the app icon everywhere
+- **PM request:** remove the duplicate window buttons and show the Linux Studio icon instead of a generic gear.
+- **Window buttons:** `src/launcher/apply_settings.py` sets `window.controlsStyle: hidden` only in the private X11 window (`LS_PRIVATE_X11=1`), and removes it elsewhere
+  so Wayland keeps the editor's buttons. Backup: `version-control/launcher/2026-11-26_0800/`.
+- **Icons:**
+  - `APP_ICON` default for all GTK windows (`src/common/studio_theme.py`, backup `version-control/common/2026-11-26_0800/`).
+  - New `src/display/window_label.py` and `src/display/icons/`: labels the Xephyr window `linux-studio-editor` with the LS icon. It runs in its own sandbox and exits.
+  - Launcher backup: `version-control/launcher/2026-11-26_0800/`.
+- **dev3-1:** install test **27/27**, lintian 0 errors in our own files. The PM's real-machine test is pending.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
