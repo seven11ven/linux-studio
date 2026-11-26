@@ -148,3 +148,8 @@ Confirmed safe:
   and clicking the editor ends it. Mockup screen 7 notes updated.
 - **dev6-1** was built (with the terminal/Mint fixes) but **not delivered**; its install test was stopped (PM: hold and combine). The combined build is **dev6-2**.
 - **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (report and decisions) · **Approved By:** Project Manager
+
+## Update 22:39 UTC: dev6-2 delivered; paused for the day
+- dev6-2 (sha256 `7fb76e63…40a0`) was delivered through a one-time private link, which closed after the download. Port 8765 confirmed closed. Not yet tested by the PM.
+- Handoff: `project-notes/handoff/2026-11-26-evening-handoff.md`.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
