@@ -103,3 +103,10 @@ Also verified: the reviewer was right that several `-extension` flags work toget
   - Launcher backup: `version-control/launcher/2026-11-26_0800/`.
 - **dev3-1:** install test **27/27**, lintian 0 errors in our own files. The PM's real-machine test is pending.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 08:46 UTC: dev3 delivered; dev4 work in progress; paused for the day
+- dev3 was delivered through a one-time private link (closed after download) and installed by the PM. One set of window buttons and the LS icon are confirmed.
+- **dev4** is written and tested (signature checker 11/11, Remove my data 15/15, real editor install accepts a genuine signature, refuses a wrong one and skips the check when off)
+  but **not committed or built**. A security review was running at pause.
+  See `project-notes/handoff/2026-11-26-handoff.md` for the full state and next steps.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
