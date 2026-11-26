@@ -378,6 +378,80 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
     sandbox that sees only your display socket. It sets the window's class to `linux-studio-editor` (the menu entry's `StartupWMClass`) and its icon
     (`src/display/icons/ls-*.png`), then exits. It's cosmetic: if it fails, Linux Studio still works.
 
+## Extension compatibility check: Claude Code (closed 2026-11-26)
+The PM tested the Claude Code extension inside Linux Studio as an example of a demanding extension (signs in, uses a website, runs commands,
+edits files). **Nothing Claude-specific is built into Linux Studio:** no pre-approved sites, no special permissions, no special code. It follows
+the same rules as every other extension.
+- **Result:** it works.
+  - It installed from Open VSX, under the verified "Anthropic" namespace.
+  - It runs inside the sandbox and sees the folder only as `/project-folder`.
+  - It used git in the sandboxed terminal.
+- **Websites it asked for:** `api.anthropic.com` (needed for it to work), plus `github.com` when cloning a repository. Both went through the normal approval pop-up.
+- **What it uncovered:** the approval pop-up could hide behind the Linux Studio window, making the extension look stuck. Fixed for everyone in dev4 (the pop-up stays on top).
+- **Not needed:** an extension-specific sign-in workaround. If an extension ever needs to open a web page in your real browser, that becomes a general
+  feature ("Open link in my browser"), designed with a mockup first.
+
+## Extension signatures, Remove my data, pop-up on top (dev4, 2026-11-26)
+
+### Extension signature checker: `src/editor/vsce-sign/`
+- **Why:** the editor checks each extension download by loading a module called `@vscode/vsce-sign`. Microsoft's version is closed source and isn't part
+  of Code - OSS, so without a replacement every install said "Signature verification was not executed".
+- **What ours does** (JavaScript, Node's built-in tools only, no network, no telemetry):
+  1. Opens the signature archive (`.sigzip`) Open VSX publishes for every extension. It contains `.signature.sig`, a 64-byte Ed25519 signature over the
+     downloaded `.vsix` file, and `.signature.manifest`, the package's size and SHA-256. Strict limits are applied: archive at most 16 MB, at most 16 entries,
+     and no encrypted or oddly compressed entries.
+  2. Checks the download's size and SHA-256 against the manifest.
+  3. Checks the Ed25519 signature against **Open VSX's public key, pinned in the file**: key id `14ccb407-4e79-41ed-be5a-6d608325c45a`, key SHA-256
+     `ffd108d0…4b623`. Pinning means a tampered server can't hand us its own key.
+- **Results:** anything except "Success" makes the editor refuse the install and show its prompt with **Install Anyway** (PM decision). Unsigned extensions are
+  refused the same way, because the editor's store settings declare every Open VSX extension signed.
+- **Setting:** Settings > Extension signatures, stored as `EXTENSION_SIGNATURES=check|off` in `~/.config/linux-studio/config`. The launcher passes it in as
+  `LS_VERIFY_EXTENSIONS`, and `apply_settings.py` writes `extensions.verifySignature`. It applies at the next start.
+  Known limit: code inside Linux Studio could switch it off in the editor's own settings until the next start.
+- **Size limit ("Largest extension to check"):** 256 MB, 512 MB (default), 1 GB or 1.5 GB, stored as `EXTENSION_SIZE_LIMIT_MB`.
+  - **Why there's a limit:** the whole package must be in memory to check an Ed25519 signature.
+  - **How it reaches the checker:** the launcher writes the value into a **read-only** file inside the sandbox, `/run/linux-studio/max-extension-mb`, which
+    code inside can't change. The checker reads it from there.
+  - **What happens above it:** bigger packages are refused, with Install Anyway.
+- **Hardening from the security review:**
+  - Only `.signature.sig` (exactly 64 bytes) and `.signature.manifest` (at most 8 MB) are ever unpacked, so "zip bomb" archives are refused.
+  - The package is read through one open file handle with a byte limit.
+  - A 3,000-case fuzz run caused no crashes and peaked at about 150 MB.
+- **Build:** the editor workflow copies the two files into `resources/app/node_modules/@vscode/vsce-sign`.
+- **If Open VSX changes its key:** installs start showing the refusal prompt. Add the new key to `PINNED_KEYS`, keeping the old one while older versions still use it.
+- **Tests:** `tests/vsce-sign-test.sh` runs 11 cases against real Open VSX files: genuine, one byte changed, forged, missing or malformed signature, broken or overfilled archive.
+
+### Remove my Linux Studio data
+- Settings > Your data (a confirmation card with tick boxes), or `linux-studio --remove-my-data` in a terminal (asks, then you type `remove`).
+- **Parts:**
+  - `extensions`: the private home `~/.local/share/linux-studio/home`, which holds extensions, editor settings and logins
+  - `toolchains`: `~/.local/share/linux-studio/toolchains`
+  - `settings`: `~/.config/linux-studio`, which holds Settings choices, approved websites and the project folder choice
+
+  The project folder itself is never touched.
+- **Safety:**
+  - It refuses while any Linux Studio is running. Each running launcher registers its process number in `~/.local/share/linux-studio/running/`.
+    A lock file wasn't used because an open file would be passed into the sandbox and reveal its real path there.
+  - It deletes only real folders at their exact expected paths. Anything that is a link, or reached through a link, is left alone.
+  - It uses `rm --one-file-system`.
+- **Read-only folders:** these (Go's module cache, or ones locked on purpose by code inside) are made writable for you first. `find` doesn't follow links
+  and stays on one disk.
+- **Further guards:** it refuses folders owned by someone else, and refuses if the settings and data folders overlap. Running entries store the
+  process start time, so a reused process number never counts as running.
+- **Tests:** `tests/remove-data-test.sh` (20 checks, including the size-limit setting).
+
+### Approval pop-up stays on top (X11)
+- `src/common/window_attention.py`: after the pop-up appears, it asks the window manager to keep it above other windows (`_NET_WM_STATE_ABOVE`) and flash
+  it (urgency hint). It deliberately does **not** take keyboard focus.
+- **Buttons:** they unlock only after the pop-up has been on screen, untouched, for 1 second. The wait restarts when the window appears or is activated, and
+  on any key press or click while the buttons are locked. Typing or clicking meant for the editor therefore can't approve a site, even with the pop-up
+  on top. Once unlocked, the buttons work by keyboard as normal (PM decision).
+
+### Flatter corners (PM decision, 2026-11-26)
+All Linux Studio desktop windows use corners 30% less rounded: 4 px instead of 6 px, and pills 7 px instead of fully round. They're set in
+`src/common/studio_theme.py`, and the mockups use the same values.
+- It does nothing on Wayland.
+
 ## Phase 1 research results (2026-11-25)
 
 Rules checked: free with no card needed, no hidden tracking, and secure (see `guidelines/Implementation.md` and `guidelines/Security.md`).

@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
 <style>
 /* Layout: mockup gallery — tab strip on top, one desktop window frame per screen, notes beside it */
-:root{
+:root{--rk:.7;
   --bg:#eef1f0; --surface:#ffffff; --panel:#f5f7f6; --ink:#17201d; --muted:#5b6762;
   --line:#d5dcd9; --accent:#1f7a5c; --accent-ink:#ffffff; --accent-soft:#dcefe7;
   --warn:#a35a00; --warn-soft:#fbeedb; --bad:#b3261e; --bad-soft:#fbe3e1;
@@ -34,7 +34,7 @@ h2{font:600 1.15rem/1.3 var(--display);margin:0}
 .notes{font-size:.9rem;color:var(--muted);display:grid;gap:10px}
 .notes h3{font:600 .75rem var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin:0}
 .notes ul{margin:0;padding-left:18px;display:grid;gap:6px}
-.win{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px -18px rgba(0,0,0,.35);overflow:hidden}
+.win{background:var(--surface);border:1px solid var(--line);border-radius:calc(10px * var(--rk));box-shadow:0 12px 30px -18px rgba(0,0,0,.35);overflow:hidden}
 .titlebar{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--panel);border-bottom:1px solid var(--line);font:500 .85rem var(--body)}
 .dots{display:flex;gap:6px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line);display:block}
 .titlebar .t{flex:1;text-align:center;color:var(--muted)}
@@ -43,20 +43,20 @@ h2{font:600 1.15rem/1.3 var(--display);margin:0}
 .field{display:grid;gap:6px}
 .field label{font-weight:500;font-size:.9rem}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-input[type=text]{flex:1;min-width:0;font:400 .9rem var(--mono);padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
-.btn{font:500 .9rem var(--body);padding:9px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+input[type=text]{flex:1;min-width:0;font:400 .9rem var(--mono);padding:9px 11px;border:1px solid var(--line);border-radius:calc(6px * var(--rk));background:var(--panel);color:var(--ink)}
+.btn{font:500 .9rem var(--body);padding:9px 14px;border-radius:calc(6px * var(--rk));border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.sm{padding:5px 10px;font-size:.82rem}
 .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .hint{font-size:.85rem;color:var(--muted);margin:0}
-.callout{padding:11px 13px;border-radius:6px;background:var(--accent-soft);font-size:.88rem}
+.callout{padding:11px 13px;border-radius:calc(6px * var(--rk));background:var(--accent-soft);font-size:.88rem}
 .callout.warn{background:var(--warn-soft)}
-.pill{display:inline-block;font:500 .74rem var(--body);padding:2px 8px;border-radius:99px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.pill{display:inline-block;font:500 .74rem var(--body);padding:2px 8px;border-radius:calc(10px * var(--rk));background:var(--panel);border:1px solid var(--line);color:var(--muted)}
 .pill.ok{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
 .pill.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
 .pill.bad{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
-.term{background:var(--term);color:var(--term-ink);font:400 .85rem/1.6 var(--mono);padding:12px 14px;border-radius:6px;overflow-x:auto;white-space:pre}
+.term{background:var(--term);color:var(--term-ink);font:400 .85rem/1.6 var(--mono);padding:12px 14px;border-radius:calc(6px * var(--rk));overflow-x:auto;white-space:pre}
 .term b{color:#7fd8b2;font-weight:500}
 .prompt-card{max-width:460px;margin:24px auto}
 .domain{font:500 1.2rem var(--mono);word-break:break-all}
@@ -72,24 +72,24 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 .tc-grid{display:grid;grid-template-columns:180px minmax(0,1fr);gap:0;min-height:320px}
 @media (max-width:620px){.tc-grid{grid-template-columns:1fr}}
 .side{border-right:1px solid var(--line);background:var(--panel);padding:10px;display:grid;gap:2px;align-content:start}
-.side button{text-align:left;background:none;border:0;padding:8px 10px;border-radius:6px;font:400 .9rem var(--body);color:var(--ink);cursor:pointer}
+.side button{text-align:left;background:none;border:0;padding:8px 10px;border-radius:calc(6px * var(--rk));font:400 .9rem var(--body);color:var(--ink);cursor:pointer}
 .side button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
 .tc-main{padding:16px;display:grid;gap:12px;align-content:start}
-.progress{height:6px;background:var(--panel);border-radius:3px;overflow:hidden}
+.progress{height:6px;background:var(--panel);border-radius:calc(3px * var(--rk));overflow:hidden}
 .progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:18px}
-.shot{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.shot{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:calc(10px * var(--rk));overflow:hidden}
 .shot img{display:block;width:100%;height:auto}
 .shot figcaption{padding:8px 12px;font-size:.88rem;color:var(--muted)}
 .gaps{margin:0;padding-left:20px;display:grid;gap:10px;font-size:.92rem}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:.88rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:calc(6px * var(--rk));font-size:.88rem}
 @media (prefers-reduced-motion:reduce){.progress i{transition:none}}
 </style>
 
 <div class="wrap">
   <header>
     <h1>Linux Studio mockups</h1>
-    <p class="lede">Screens for review before code is written. Screen 5 (Settings) has a new <b>Extension signatures</b> section awaiting approval. Everything here is clickable, and all names, sites and versions are examples.</p>
+    <p class="lede">Screens for review before code is written. Screen 5 (Settings) shows the approved Extension signatures, size limit and Your data sections. Corners use the approved flatter style (30% less rounded). Everything here is clickable, and all names, sites and versions are examples.</p>
   </header>
 
   <nav class="tabs" role="tablist">
@@ -204,6 +204,16 @@ project-folder/apples</div></div>
             <button class="btn" id="sig-off" aria-pressed="false">Don't check</button>
           </div>
           <div class="callout" id="sig-note"></div>
+          <div class="row" id="size-row">
+            <span>Largest extension to check</span>
+            <select class="btn" id="sig-size" aria-label="Largest extension to check">
+              <option value="256">256 MB</option>
+              <option value="512" selected>512 MB (default)</option>
+              <option value="1024">1 GB</option>
+              <option value="1536">1.5 GB</option>
+            </select>
+          </div>
+          <p class="hint" id="size-note">Extensions bigger than this are refused (you can still choose Install Anyway). A bigger limit lets larger extensions be checked but uses more memory while checking. Claude Code is about 190 MB.</p>
         </div>
         <div class="field">
           <label>Display</label>
@@ -212,6 +222,27 @@ project-folder/apples</div></div>
             <dt>What this means</dt><dd id="disp-note">Your desktop uses X11, so Linux Studio runs in its own window with a private display. Code inside can only see and type into that window.</dd>
           </dl>
           <div class="row"><button class="btn sm" id="disp-toggle">Preview: desktop uses Wayland</button></div>
+        </div>
+        <div class="field">
+          <label>CPU and memory</label>
+          <p class="hint" style="margin:0">This computer: <b>8 CPU cores</b>, <b>16 GB</b> memory (example).</p>
+          <div class="row">
+            <span style="min-width:9em">CPU cores</span>
+            <select class="btn" id="res-cpu" aria-label="CPU cores Linux Studio may use">
+              <option value="8">All 8 cores</option>
+              <option value="7" selected>7 cores (default: all but one)</option>
+              <option>6 cores</option><option>4 cores</option><option>2 cores</option><option>1 core</option>
+            </select>
+          </div>
+          <div class="row">
+            <span style="min-width:9em">Memory limit</span>
+            <select class="btn" id="res-mem" aria-label="Memory limit for Linux Studio">
+              <option value="0">No limit</option>
+              <option value="12" selected>12 GB (default: 75%)</option>
+              <option>8 GB</option><option>4 GB</option><option>2 GB</option>
+            </select>
+          </div>
+          <div class="callout" id="res-note">Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in its terminal. Programs inside see only the cores you allow, so builds don't try to use more. Applies the next time Linux Studio starts.</div>
         </div>
         <div class="field">
           <label>More</label>
@@ -236,6 +267,8 @@ project-folder/apples</div></div>
     <aside class="notes"><h3>What happens</h3><ul>
       <li><b>New: Extension signatures.</b> <b>Check signatures</b> (default): every extension downloaded from Open VSX is checked against Open VSX's signature before it installs. A missing, wrong or tampered signature stops the install and shows the editor's prompt, the same kind of box you saw, with <b>Install Anyway</b> to override.</li>
       <li><b>Don't check</b>: extensions install without the check, with the warning shown.</li>
+      <li><b>New: CPU and memory.</b> CPU cores: <b>all but one by default</b> (All, or down to 1, can be chosen); programs inside see only those cores. Memory limit: <b>75% of your computer's memory by default</b> (No limit, or lower caps, can be chosen). If Linux Studio needs more than the cap, Linux stops the biggest program <i>inside</i> Linux Studio (often a build or an extension) instead of slowing your whole computer; the note turns into a warning when a limit is chosen. Choices are built from your real core count and memory. Applies at the next start. If your system can't enforce a memory limit, Linux Studio starts without it and says so.</li>
+      <li><b>New: Largest extension to check</b> (256 MB, 512 MB default, 1 GB, 1.5 GB). The whole download has to be held in memory to check its signature, so this cap stops an oversized download from exhausting memory. Bigger extensions are refused with Install Anyway. Hidden while <b>Don't check</b> is chosen. Applies at the next start.</li>
       <li><b>New: Remove my Linux Studio data.</b> Uninstalling never deletes your data, so this is how you clear it yourself. It refuses while Linux Studio is open, lets you pick what goes, and never touches your project folder. The same is available as <span class="mono">linux-studio --remove-my-data</span>, which asks you to type <span class="mono">remove</span> to confirm.</li>
       <li>Opened from the menu entry “Settings” or <span class="mono">linux-studio --settings</span>. A desktop window, outside the sandbox.</li>
       <li><b>Paste only</b> (default): your clipboard reaches Linux Studio only at the moment you really paste in its window. Nothing inside can read it in the background, and copies made inside stay inside.</li>
@@ -318,9 +351,15 @@ const sigNotes={on:'Check signatures: before an extension installs, Linux Studio
  off:'Don\'t check: extensions install without checking that the download is exactly what Open VSX published. ⚠ A tampered download would not be noticed. Downloads still only come from open-vsx.org over HTTPS.'};
 function setSig(m){$('#sig-on').setAttribute('aria-pressed',m==='on');$('#sig-off').setAttribute('aria-pressed',m==='off');
   $('#sig-on').classList.toggle('primary',m==='on');$('#sig-off').classList.toggle('primary',m==='off');
-  $('#sig-note').textContent=sigNotes[m];$('#sig-note').classList.toggle('warn',m==='off');toast(m==='on'?'Extension signatures: checked (next start)':'Extension signatures: not checked (next start)')}
+  $('#sig-note').textContent=sigNotes[m];$('#sig-note').classList.toggle('warn',m==='off');$('#size-row').hidden=$('#size-note').hidden=(m==='off');toast(m==='on'?'Extension signatures: checked (next start)':'Extension signatures: not checked (next start)')}
 $('#rm-open').onclick=()=>{$('#rm-card').hidden=false};$('#rm-cancel').onclick=()=>{$('#rm-card').hidden=true};
 $('#rm-go').onclick=()=>{$('#rm-card').hidden=true;toast('Removed the selected Linux Studio data (preview only)')};
+const resBase='Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in its terminal. Programs inside see only the cores you allow, so builds don\'t try to use more. Applies the next time Linux Studio starts.';
+function resNote(){/* default has a limit */const mem=$('#res-mem').value!=='0';$('#res-note').textContent=resBase+(mem?' ⚠ With a memory limit, if Linux Studio needs more than '+$('#res-mem').selectedOptions[0].textContent+', the biggest program inside it (often a build or an extension) is stopped. Save your work often.':'');$('#res-note').classList.toggle('warn',mem)}
+$('#res-cpu').onchange=e=>toast('CPU cores: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)');
+resNote();
+$('#res-mem').onchange=e=>{resNote();toast('Memory limit: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)')};
+$('#sig-size').onchange=e=>toast('Largest extension to check: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)');
 $('#sig-on').onclick=()=>setSig('on');$('#sig-off').onclick=()=>setSig('off');
 $('#sig-note').textContent=sigNotes.on;$('#sig-on').classList.add('primary');
 const notes={paste:'Paste only: text you copy elsewhere reaches Linux Studio only when you paste inside its window with the keyboard (Ctrl+V or Shift+Insert), once per paste. Code inside can\'t read your clipboard in the background, highlighted text is never shared, and anything copied inside stays inside.',

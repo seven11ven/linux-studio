@@ -136,6 +136,14 @@ jobs:
           jq -e '.contributes.themes | length == 2' "$DEST/package.json"
           [[ -z "$(jq -r '.main // .browser // empty' "$DEST/package.json")" ]] || { echo "theme extension must not contain code"; exit 1; }
 
+      - name: Add Linux Studio's extension signature checker (open source, replaces Microsoft's closed vsce-sign)
+        run: |
+          DEST=VSCode-linux-x64/resources/app/node_modules/@vscode/vsce-sign
+          [[ ! -e "$DEST" ]] || { echo "$DEST already exists; refusing to overwrite an unknown module"; exit 1; }
+          mkdir -p "$DEST"
+          cp studio/src/editor/vsce-sign/package.json studio/src/editor/vsce-sign/index.js "$DEST/"
+          grep -q 'MCowBQYDK2VwAyEAje+vAaSS1zHV5WHCJSa5UXvxRo6+yerEU3IEmtuEuF4=' "$DEST/index.js"
+
       - name: Verify no telemetry addresses in the finished app
         run: studio/scripts/neutralise-telemetry.sh --check VSCode-linux-x64
 

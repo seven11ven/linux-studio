@@ -1,0 +1,9 @@
+{
+  "name": "@vscode/vsce-sign",
+  "version": "0.0.0-linux-studio.1",
+  "description": "Linux Studio's open-source replacement for Microsoft's closed-source extension signature checker. Verifies Open VSX extension signatures (Ed25519) against a pinned Open VSX public key. No network access, no telemetry, Node built-ins only.",
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js",
+  "private": true
+}

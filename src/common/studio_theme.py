@@ -24,18 +24,18 @@ label { color: {ink}; }
 .ls-title { font-size: 1.35em; font-weight: 600; }
 .ls-muted { color: {muted}; }
 .ls-domain { font-family: monospace; font-size: 1.25em; font-weight: 600; }
-.ls-note { background-color: {accent_soft}; border-radius: 6px; padding: 10px 12px; }
-.ls-note-warn { background-color: {warn_soft}; border-radius: 6px; padding: 10px 12px; }
-.ls-term { background-color: {term}; color: {term_ink}; font-family: monospace; border-radius: 6px; padding: 10px 12px; }
-.ls-pill-warn { background-color: {warn_soft}; color: {warn}; border-radius: 99px; padding: 2px 10px; font-size: 0.85em; font-weight: 600; }
-.ls-pill-ok { background-color: {accent_soft}; color: {accent}; border-radius: 99px; padding: 2px 10px; font-size: 0.85em; }
-.ls-pill-bad { background-color: {bad_soft}; color: {bad}; border-radius: 99px; padding: 2px 10px; font-size: 0.85em; }
+.ls-note { background-color: {accent_soft}; border-radius: 4px; padding: 10px 12px; }
+.ls-note-warn { background-color: {warn_soft}; border-radius: 4px; padding: 10px 12px; }
+.ls-term { background-color: {term}; color: {term_ink}; font-family: monospace; border-radius: 4px; padding: 10px 12px; }
+.ls-pill-warn { background-color: {warn_soft}; color: {warn}; border-radius: 7px; padding: 2px 10px; font-size: 0.85em; font-weight: 600; }
+.ls-pill-ok { background-color: {accent_soft}; color: {accent}; border-radius: 7px; padding: 2px 10px; font-size: 0.85em; }
+.ls-pill-bad { background-color: {bad_soft}; color: {bad}; border-radius: 7px; padding: 2px 10px; font-size: 0.85em; }
 .ls-error { color: {bad}; }
-entry { background-color: {panel}; color: {ink}; border: 1px solid {line}; border-radius: 6px; font-family: monospace; }
+entry { background-color: {panel}; color: {ink}; border: 1px solid {line}; border-radius: 4px; font-family: monospace; }
 entry:focus-within { border-color: {accent}; box-shadow: 0 0 0 1px {accent}; outline: none; }
 entry text selection, label selection { background-color: {accent_soft}; color: {ink}; }
 button { background-image: none; background-color: {surface}; color: {ink}; border: 1px solid {line};
-         border-radius: 6px; box-shadow: none; padding: 6px 14px; }
+         border-radius: 4px; box-shadow: none; padding: 6px 14px; }
 button:hover { background-color: {panel}; }
 button.ls-primary { background-color: {accent}; color: {accent_ink}; border-color: {accent}; font-weight: 600; }
 button.ls-primary label { color: {accent_ink}; }
@@ -60,7 +60,7 @@ button.ls-side-item:checked label { color: {accent}; font-weight: 600; }
 button.ls-choice:checked, button.ls-choice:checked label { background-color: {accent}; color: {accent_ink}; border-color: {accent}; font-weight: 600; }
 .ls-subtitle { font-weight: 600; margin-top: 8px; }
 .ls-mono { font-family: monospace; }
-.ls-pill { background-color: {panel}; color: {muted}; border: 1px solid {line}; border-radius: 99px; padding: 2px 10px; font-size: 0.85em; }
+.ls-pill { background-color: {panel}; color: {muted}; border: 1px solid {line}; border-radius: 7px; padding: 2px 10px; font-size: 0.85em; }
 """
 
 

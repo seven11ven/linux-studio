@@ -54,6 +54,9 @@ def main():
         merged["window.controlsStyle"] = "hidden"
     else:
         merged.pop("window.controlsStyle", None)
+    # Extension signature check (Settings > Extension signatures, stored outside the sandbox). On by default; the
+    # launcher passes the choice in. The check itself is Linux Studio's open-source checker (src/editor/vsce-sign).
+    merged["extensions.verifySignature"] = os.environ.get("LS_VERIFY_EXTENSIONS", "1") != "0"
     fd, tmp = tempfile.mkstemp(dir=folder, prefix=".settings.", suffix=".tmp")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(merged, f, indent=2, sort_keys=True)

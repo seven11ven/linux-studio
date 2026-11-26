@@ -21,6 +21,7 @@ from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 from netpolicy import normalise_host  # noqa: E402
 from studio_theme import apply_theme  # noqa: E402
+from window_attention import demand_attention  # noqa: E402
 
 DENY, ONCE, ALWAYS, BLOCK_NEW, CLOSED = 10, 11, 12, 13, 1
 BUTTON_DELAY_MS = 1000   # buttons wait 1 s so a stray click or key press can't approve (security review #4)
@@ -104,11 +105,44 @@ def main():
         buttons.append(block)
         box.append(block)
 
+        # Buttons unlock only after the pop-up has been on screen, untouched, for BUTTON_DELAY_MS. The wait starts when
+        # the window appears or becomes active, and starts again on any key press or click while they are still
+        # locked, so typing or clicking that was meant for the editor can't approve a site (security review
+        # 2026-11-26, finding 1). The buttons stay reachable by keyboard once unlocked (PM decision).
+        timer = {"id": 0, "armed": True}
+
         def enable():
+            timer["id"] = 0
+            timer["armed"] = False
             for b in buttons:
                 b.set_sensitive(True)
             return False
-        GLib.timeout_add(BUTTON_DELAY_MS, enable)
+
+        def arm(*_args):
+            if not timer["armed"]:
+                return
+            if timer["id"]:
+                GLib.source_remove(timer["id"])
+            timer["id"] = GLib.timeout_add(BUTTON_DELAY_MS, enable)
+
+        def input_while_locked(*_args):
+            if timer["armed"]:
+                arm()
+                return True   # swallow it: nothing reaches the (disabled) buttons
+            return False
+
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        keys.connect("key-pressed", input_while_locked)
+        win.add_controller(keys)
+        clicks = Gtk.GestureClick(button=0)
+        clicks.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        clicks.connect("pressed", input_while_locked)
+        win.add_controller(clicks)
+        win.connect("map", arm)
+        win.connect("notify::is-active", lambda w, _p: arm() if w.is_active() else None)
+        # Keep this pop-up on top on X11 desktops (without taking the keyboard), so it can't hide behind Linux Studio.
+        win.connect("map", lambda w: GLib.timeout_add(100, lambda: demand_attention(w) or False))
         # No default button: pressing Enter must not approve anything by accident.
         win.present()
 

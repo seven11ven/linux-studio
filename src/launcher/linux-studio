@@ -13,7 +13,9 @@
 # Usage:
 #   linux-studio                          start the editor
 #   linux-studio --network                open the "Approved websites" window
-#   linux-studio --settings               open Linux Studio's settings (clipboard, display)
+#   linux-studio --settings               open Linux Studio's settings (clipboard, extension signatures, display)
+#   linux-studio --set-extension-size-limit MB   largest extension the signature check accepts (256, 512, 1024, 1536)
+#   linux-studio --remove-my-data         delete Linux Studio's data from this computer (asks first; never your project)
 #   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
 #   linux-studio --set-project-folder P   choose the project folder
 #   linux-studio --shell [-c COMMAND]     open a terminal in the same sandbox (testing/debugging)
@@ -110,6 +112,84 @@ first_run() {
   fi
 }
 
+# ---------- "Remove my Linux Studio data" ----------
+RUNNING_DIR="$STATE_DIR/running"
+
+proc_start_time() {   # proc_start_time PID: the process's start time (field 22 of /proc/PID/stat), empty if gone
+  local st; st="$(cat "/proc/$1/stat" 2>/dev/null)" || return 0
+  st="${st##*) }"; local f; read -r -a f <<< "$st"; printf '%s\n' "${f[19]:-}"
+}
+
+# Is any Linux Studio (editor, shell, toolchains worker) still running? Each one registers its process number in
+# $RUNNING_DIR while it runs (a lock file is not used: an open file would be passed into the sandbox and show its
+# real path there). Stale entries from crashed runs are cleaned up here.
+linux_studio_running() {
+  local f pid
+  [[ -d "$RUNNING_DIR" ]] || return 1
+  for f in "$RUNNING_DIR"/*; do
+    [[ -e "$f" ]] || continue
+    pid="${f##*/}"
+    # Same process number AND same start time as when it registered, so a reused number never counts.
+    if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && [[ -n "$(proc_start_time "$pid")" ]] \
+       && [[ "$(cat "$f" 2>/dev/null)" == "$(proc_start_time "$pid")" ]]; then
+      return 0
+    fi
+    rm -f -- "$f"
+  done
+  return 1
+}
+
+# Deletes one of Linux Studio's own folders, only if it is a real folder (not a link) at exactly the expected place.
+remove_dir_safely() {   # remove_dir_safely LABEL PATH
+  local label="$1" d="$2" home; home="$(realpath -m -- "$HOME")"
+  if [[ ! -e "$d" && ! -L "$d" ]]; then echo "  $label: nothing to remove"; return 0; fi
+  [[ -d "$d" && ! -L "$d" ]] || die "$label: $d is not a normal folder, so it was left alone"
+  [[ "$(realpath -- "$d")" == "$(realpath -m -- "$d")" && "$(realpath -- "$d")" == "$d" ]] \
+    || die "$label: $d goes through a link, so it was left alone"
+  case "$d" in /|"$home"|"$home"/|/home|/root) die "$label: refusing to delete $d" ;; esac
+  [[ "$(basename "$d")" == home || "$(basename "$d")" == toolchains || "$(basename "$d")" == linux-studio ]] \
+    || die "$label: unexpected folder name $d, left alone"
+  [[ -O "$d" ]] || die "$label: $d belongs to another user, so it was left alone"
+  # Some tools (Go's module cache, for example) make folders read-only, and code inside Linux Studio could do the same on
+  # purpose; rm can't empty those. Make every folder inside writable for you first. find doesn't follow links and -xdev
+  # keeps it on this disk, so nothing outside the folder is changed (security review 2026-11-26, finding 2).
+  find "$d" -xdev -type d ! -perm -u=rwx -exec chmod u+rwx -- {} + 2>/dev/null || true
+  rm -rf --one-file-system -- "$d" || die "$label: couldn't remove everything in $d"
+  echo "  $label: removed"
+}
+
+# PARTS: comma list of extensions (private home: extensions, editor settings, logins), toolchains, settings
+# (Settings choices, approved websites, project folder choice). The project folder itself is never touched.
+remove_my_data() {   # remove_my_data PARTS
+  local parts=",$1,"
+  [[ "$parts" =~ ^,((extensions|toolchains|settings),)+$ ]] || die "choose what to remove: extensions, toolchains, settings"
+  linux_studio_running && die "Linux Studio is still open. Close it (and the Toolchains window) first, then try again."
+  STATE_DIR="$(realpath -m -- "$STATE_DIR")"; CONFIG_DIR="$(realpath -m -- "$CONFIG_DIR")"
+  # If the settings folder and the data folder overlap (unusual XDG_* settings), removing one would delete parts you
+  # didn't choose, so refuse (security review 2026-11-26, finding 5).
+  [[ "$STATE_DIR/" != "$CONFIG_DIR/"* && "$CONFIG_DIR/" != "$STATE_DIR/"* ]] \
+    || die "Linux Studio's settings folder ($CONFIG_DIR) and data folder ($STATE_DIR) overlap; remove them by hand instead"
+  echo "Removing Linux Studio data (your project folder is not touched):"
+  [[ "$parts" != *,extensions,* ]] || remove_dir_safely "Extensions, editor settings and logins" "$STATE_DIR/home"
+  [[ "$parts" != *,toolchains,* ]] || remove_dir_safely "Toolchains" "$STATE_DIR/toolchains"
+  [[ "$parts" != *,settings,* ]]   || remove_dir_safely "Settings choices and approved websites" "$CONFIG_DIR"
+  echo "Done."
+}
+
+remove_my_data_interactive() {
+  [[ -t 0 ]] || die "--remove-my-data asks questions; run it in a terminal (or use Settings > Your data)"
+  local parts="" a
+  echo "Remove your Linux Studio data from this computer. Your project folder is never touched."
+  echo "Close Linux Studio first. This can't be undone."
+  read -r -p "Remove extensions, editor settings and logins (for example Claude's)? [Y/n] " a; [[ "$a" =~ ^[Nn] ]] || parts+="extensions,"
+  read -r -p "Remove toolchains you installed? [Y/n] " a;                                      [[ "$a" =~ ^[Nn] ]] || parts+="toolchains,"
+  read -r -p "Remove your Settings choices and approved websites? [y/N] " a;                    [[ "$a" =~ ^[Yy] ]] && parts+="settings,"
+  [[ -n "$parts" ]] || { echo "Nothing selected; nothing removed."; exit 0; }
+  read -r -p "Type 'remove' to delete: ${parts%,} " a
+  [[ "$a" == remove ]] || { echo "Cancelled; nothing removed."; exit 0; }
+  remove_my_data "${parts%,}"
+}
+
 # ---------- arguments ----------
 MODE=editor; GPU=0; UNSAFE_X11=0; SHELL_CMD=()
 while (( $# )); do
@@ -122,6 +202,17 @@ while (( $# )); do
     --set-clipboard)
       [[ "${2:-}" == paste-only || "${2:-}" == both ]] || die "--set-clipboard needs paste-only or both"
       set_setting CLIPBOARD "$2"; echo "Clipboard: $2"; exit 0 ;;
+    --get-extension-signatures) get_setting EXTENSION_SIGNATURES check; exit 0 ;;   # used by the Settings window
+    --set-extension-signatures)
+      [[ "${2:-}" == check || "${2:-}" == off ]] || die "--set-extension-signatures needs check or off"
+      set_setting EXTENSION_SIGNATURES "$2"; echo "Extension signatures: $2 (applies the next time Linux Studio starts)"; exit 0 ;;
+    --get-extension-size-limit) get_setting EXTENSION_SIZE_LIMIT_MB 512; exit 0 ;;   # MB; used by the Settings window
+    --set-extension-size-limit)
+      [[ "${2:-}" =~ ^(256|512|1024|1536)$ ]] || die "--set-extension-size-limit needs 256, 512, 1024 or 1536 (MB)"
+      set_setting EXTENSION_SIZE_LIMIT_MB "$2"; echo "Largest extension to check: $2 MB (applies the next time Linux Studio starts)"; exit 0 ;;
+    --remove-my-data) remove_my_data_interactive; exit 0 ;;
+    --remove-my-data-now) remove_my_data "${2:-}"; exit 0 ;;   # used by the Settings window after its own confirmation
+    --is-running) linux_studio_running && echo yes || echo no; exit 0 ;;   # used by the Settings window
     --toolchains) MODE=toolchains-ui ;;
     --toolchains-worker) MODE=toolchains-worker ;;   # internal: started by the Toolchains explorer
     --self-test) MODE=selftest ;;
@@ -131,7 +222,7 @@ while (( $# )); do
     --unsafe-direct-x11) UNSAFE_X11=1 ;;
     --editor-dir) EDITOR_DIR="$(realpath -- "${2:?}")"; shift ;;
     --runtime-dir) RUNTIME_DIR="$(realpath -- "${2:?}")"; shift ;;
-    -h|--help) sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^set -euo pipefail/{/^#/p}' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
   shift
@@ -187,7 +278,8 @@ if [[ $MODE == selftest ]]; then
 elif [[ $MODE != toolchains-worker ]]; then
   load_project_folder || { first_run; load_project_folder || die "no project folder set"; }
 fi
-mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOME" "$TOOLCHAINS_DIR"
+mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR" "$RUNNING_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOME" "$TOOLCHAINS_DIR" "$RUNNING_DIR"
+proc_start_time $$ > "$RUNNING_DIR/$$"   # "Linux Studio is running" (removed in cleanup; see linux_studio_running)
 
 # ---------- per-launch fake identity (deleted on exit) ----------
 RUNTIME_TMP="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/linux-studio.XXXXXXXX")"
@@ -198,6 +290,7 @@ cleanup() {
     if [[ -n "$p" ]]; then kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; fi
   done
   rm -rf -- "$RUNTIME_TMP"
+  rm -f -- "$RUNNING_DIR/$$"
   [[ -z "${SELFTEST_DIR:-}" ]] || rm -rf -- "$SELFTEST_DIR"
 }
 trap cleanup EXIT INT TERM
@@ -206,6 +299,9 @@ printf 'root:x:0:\nuser:x:1000:\nnogroup:x:65534:\n' > "$RUNTIME_TMP/group"
 printf 'studio\n' > "$RUNTIME_TMP/hostname"
 printf '127.0.0.1 localhost\n127.0.1.1 studio\n::1 localhost\n' > "$RUNTIME_TMP/hosts"
 od -An -tx1 -N16 /dev/urandom | tr -d ' \n' > "$RUNTIME_TMP/machine-id"; echo >> "$RUNTIME_TMP/machine-id"
+# "Largest extension to check" (Settings), read by the signature checker from a read-only file inside the sandbox.
+size_limit="$(get_setting EXTENSION_SIZE_LIMIT_MB 512)"; [[ "$size_limit" =~ ^(256|512|1024|1536)$ ]] || size_limit=512
+printf '%s\n' "$size_limit" > "$RUNTIME_TMP/max-extension-mb"
 : > "$RUNTIME_TMP/resolv.conf"   # no name servers: names are looked up only by the proxy, outside
 
 # ---------- approved-websites proxy (stopped in cleanup) ----------
@@ -235,8 +331,10 @@ ARGS=(
   --ro-bind "$RUNTIME_TMP/resolv.conf" /etc/resolv.conf
   --dir /run/linux-studio
   --ro-bind "$RUNTIME_TMP/proxy.sock" /run/linux-studio/proxy.sock
+  --ro-bind "$RUNTIME_TMP/max-extension-mb" /run/linux-studio/max-extension-mb
   --ro-bind "$NETWORK_DIR/net_bridge.py" /run/linux-studio/net_bridge.py
   --setenv GOTOOLCHAIN local --setenv CARGO_HOME /home/user/.cargo
+  --setenv LS_VERIFY_EXTENSIONS "$([[ "$(get_setting EXTENSION_SIGNATURES check)" == off ]] && echo 0 || echo 1)"
   --setenv HOME /home/user --setenv USER user --setenv LOGNAME user --setenv SHELL /bin/bash
   --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv LANG C.UTF-8 --setenv TERM xterm-256color
   --setenv XDG_RUNTIME_DIR /run/user/1000
