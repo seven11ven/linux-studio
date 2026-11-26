@@ -115,3 +115,8 @@ Confirmed safe:
     waiting extension, and other schemes are refused.
   - Add the free Noto fonts (core + CJK; about 134 MB installed) to the private runtime.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 15:51 UTC: dev5 built
+- `linux-studio_0.1.0~dev5-1_amd64.deb` (538 MB, sha256 `2e5c8a1e…8b63`): all suites passed, clean install 27/27, lintian 0 errors in our files.
+  Log: `project-builds/logs/Linux-Studio-debian-amd64-0.1.0~dev5-1.md`. Delivery to the PM is the next step.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
