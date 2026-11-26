@@ -11,7 +11,11 @@ Categories=Development;IDE;
 Keywords=code;editor;ide;programming;privacy;sandbox;
 StartupNotify=true
 StartupWMClass=@WMCLASS@
-Actions=websites;toolchains;
+Actions=settings;websites;toolchains;
+
+[Desktop Action settings]
+Name=Settings
+Exec=/usr/bin/linux-studio --settings
 
 [Desktop Action websites]
 Name=Approved websites

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=Linux Studio
+GenericName=Code Editor
+Comment=Private, sandboxed code editor that can only see your project folder
+Exec=/usr/bin/linux-studio
+TryExec=/usr/bin/linux-studio
+Icon=io.github.seven11ven.linuxstudio
+Terminal=false
+Categories=Development;IDE;
+Keywords=code;editor;ide;programming;privacy;sandbox;
+StartupNotify=true
+StartupWMClass=@WMCLASS@
+Actions=websites;toolchains;
+
+[Desktop Action websites]
+Name=Approved websites
+Exec=/usr/bin/linux-studio --network
+
+[Desktop Action toolchains]
+Name=Toolchains
+Exec=/usr/bin/linux-studio --toolchains

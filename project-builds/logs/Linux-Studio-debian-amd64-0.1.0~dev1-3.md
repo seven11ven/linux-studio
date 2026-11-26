@@ -33,3 +33,12 @@
   loopback only, no direct internet, proxy bridge running.
 - **INFO:** inner sandboxes aren't allowed, as expected under the restricted design. The editor's Chromium inner sandbox and the Rust installer's nested sandbox are off; the main sandbox still isolates everything.
 - **Still to confirm:** the editor window opens from the app menu.
+
+## Correction (2026-11-26 07:17 UTC): the lintian result above was wrong
+- The "0 errors, 40 warnings" line is **incorrect**. The command used (`lintian … | sort | uniq -c | sort -rn | head -40`) kept only the first 40 lines.
+  Every line had a count of 1, so the reverse sort put all `W:` lines before the `E:` lines, and every error was cut off.
+- A full count on the next build (dev2) shows the real picture. That build differs only in Phase 6 files, so revision 3 would have shown nearly the same
+  result. Most findings are `dir-or-file-in-opt`, which is expected because the app lives in `/opt` on purpose, and the rest are in the bundled Debian
+  runtime and the editor, plus 3 minor issues in Linux Studio's own packaging. These were fixed in dev2-2. See `Linux-Studio-debian-amd64-0.1.0~dev2-2.md`.
+- No security or functional problem was hidden by the mistake. Lintian results are now counted per tag with the full report saved, never cut with `head`.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

@@ -64,3 +64,9 @@
 - **Delivery:** a temporary Python download page on private port 8765, which auto-closed after one complete download (scratchpad tool, not in the repo).
 - **Next:** confirm the editor opens from the menu.
 - **Performed By:** Claude Opus 5.5 (Anthropic) / Project Manager (on-machine test) · **Approved By:** Project Manager
+
+## Correction added 2026-11-26 07:17 UTC
+- The "lintian on revision 3: 0 errors, 40 warnings" entry above is **wrong**. The output was cut to its first 40 lines, which dropped every error.
+  The full results and their explanations are in the dev2-2 build log, and the 3 real (minor) packaging issues were fixed in dev2-2.
+  Details are in `project-builds/logs/Linux-Studio-debian-amd64-0.1.0~dev1-3.md` (Correction section).
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

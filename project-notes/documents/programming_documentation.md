@@ -327,6 +327,47 @@ and your project folder) are **never** deleted, not even by `apt purge`.
   - a wider secret scan in the build
   - the runtime `/tmp` stays sticky
 
+## Safe X11 desktops and the clipboard setting (Phase 6)
+
+**The problem:** on X11 desktops (Linux Mint's Cinnamon uses X11 by default), any program that can talk to your display can read
+your whole screen and type into your other windows. Giving that ability to code inside the sandbox would break it.
+
+**The solution, a private display:** on X11, Linux Studio starts **Xephyr**, a small X server from the X.org project that shows up as
+**one window titled "Linux Studio"** on your desktop. The editor draws inside it and can only see or type into that window.
+- Xephyr runs in **its own sandbox**: it sees your display socket and its own socket folder, not your files.
+- The private display is protected by a **fresh random password ("cookie")** every launch.
+- Its **fake-keyboard feature (XTEST) is switched off**, so nothing inside can type keys.
+- A tiny window manager (`matchbox-window-manager`, in the runtime) keeps the editor filling the window when you resize it.
+- On Wayland nothing changes, because Wayland already keeps apps apart. `--allow-x11` is no longer needed.
+  The old direct mode exists only as `--unsafe-direct-x11` and isn't recommended.
+
+**The clipboard bridge** (`src/display/clipboard_bridge.py`, in its own sandbox) moves **text only** (up to 1 MB) between your desktop
+and Linux Studio, depending on the **Clipboard setting**:
+- **Paste only (default):** your desktop clipboard is handed over **only at the moment you really paste** inside the Linux Studio window
+  with Ctrl+V, Ctrl+Shift+V, Shift+Insert, or middle-click.
+  - "Really" means real keyboard or mouse input. The bridge watches the private display's *raw input events*, which programs can't fake.
+  - Background reads get nothing, and text you copy inside Linux Studio stays inside.
+- **Both directions:** works like a normal app. Code inside could read anything you copy elsewhere, which the setting window warns about.
+
+**Settings window:** `linux-studio --settings` (also in the app menu) shows the Clipboard toggle and the display mode.
+- Settings live in `~/.config/linux-studio/config` (`CLIPBOARD=paste-only|both`).
+- They're **outside the sandbox**, so nothing inside can change them.
+- Only the launcher writes them (`--set-clipboard`), and changes apply immediately.
+
+**Check it:** `linux-studio --self-test` on an X11 desktop adds three checks:
+- only the private display is visible
+- the private display is running
+- there's no fake keyboard
+
+The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
+
+## Look fixes (Phase 6, after the screenshot gallery)
+- **Desktop windows follow your light or dark setting** like the editor does (`src/common/studio_theme.py` asks the desktop's colour-scheme setting).
+- **Editor branding:** the Linux Studio icon in the title bar and window, plus an LS watermark in the empty editor (`src/editor/branding/`).
+- **Unused AI side panel hidden:** VS Code's built-in welcome is replaced by a short **Get started with Linux Studio** walkthrough.
+  It's data only, with no code.
+- **Light theme terminal:** now light, so its hint text is readable.
+
 ## Phase 1 research results (2026-11-25)
 
 Rules checked: free with no card needed, no hidden tracking, and secure (see `guidelines/Implementation.md` and `guidelines/Security.md`).

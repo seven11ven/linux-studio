@@ -58,12 +58,12 @@ chmod -R u+rwX,go+rX,go-w "$OPT"
 
 echo "Copying Linux Studio's own files…"
 mkdir -p "$OPT/share"
-for d in launcher network toolchains first-run common editor runtime; do
+for d in launcher network toolchains first-run common editor runtime display settings; do
   cp -a "$ROOT/src/$d" "$OPT/share/$d"
 done
 find "$OPT/share" -name '__pycache__' -prune -exec rm -rf {} +
 chmod 0755 "$OPT/share/launcher/linux-studio"
-ln -s ../../opt/linux-studio/share/launcher/linux-studio "$P/usr/bin/linux-studio"
+ln -s /opt/linux-studio/share/launcher/linux-studio "$P/usr/bin/linux-studio"   # absolute: link crosses top-level folders (lintian relative-symlink)
 
 sed "s/@WMCLASS@/linux-studio-editor/" "$ROOT/packaging/deb/files/$APPID.desktop" > "$P/usr/share/applications/$APPID.desktop"
 cp "$ROOT/packaging/deb/files/$APPID.svg" "$P/usr/share/icons/hicolor/scalable/apps/$APPID.svg"
@@ -79,7 +79,7 @@ Editor: Code - OSS $EDITOR_TAG (MIT licence). Runtime: Debian 13 packages (see r
 Check the sandbox on this computer:  linux-studio --self-test
 EOF
 cp "$ROOT/build/runtime-manifest.txt" "$P/usr/share/doc/$PKG/runtime-manifest.txt"
-printf '%s (%s) unstable; urgency=medium\n\n  * %s build of Linux Studio %s. Full history: project-changelog/ in the source repository.\n\n -- seven11ven <seven11ven@users.noreply.github.com>  %s\n' \
+printf '%s (%s) unstable; urgency=medium\n\n  * %s build of Linux Studio %s.\n  * Full history: project-changelog/ in the source repository.\n\n -- seven11ven <seven11ven@users.noreply.github.com>  %s\n' \
   "$PKG" "$FULLVER" "${TYPE^}" "$VERSION" "$(date -u -R)" | gzip -9n > "$P/usr/share/doc/$PKG/changelog.Debian.gz"
 cat > "$P/usr/share/doc/$PKG/copyright" <<EOF
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
@@ -116,7 +116,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: seven11ven <seven11ven@users.noreply.github.com>
 Installed-Size: $SIZE_KB
-Depends: bubblewrap, python3, python3-gi, gir1.2-gtk-4.0, apparmor
+Depends: bubblewrap, python3, python3-gi, gir1.2-gtk-4.0, apparmor, xserver-xephyr, python3-xlib, xauth
 Homepage: https://github.com/seven11ven/linux-studio
 Description: private, sandboxed code editor
  Linux Studio is a code editor (built from Code - OSS) that runs in a sandbox.
@@ -138,6 +138,8 @@ fi
 find "$P" -type d -exec chmod 0755 {} +
 find "$P" -type f -exec chmod u+rw,go+r,go-w {} +
 chmod 1777 "$OPT/runtime/tmp" "$OPT/runtime/var/tmp"   # keep the usual sticky /tmp folders (review #8)
+# Linux Studio helper scripts that start with "#!" are marked runnable (lintian script-not-executable).
+find "$OPT/share" -type f -name "*.py" -exec sh -c '[ "$(head -c2 "$1")" = "#!" ]' _ {} \; -exec chmod 0755 {} +
 chmod 0755 "$P/DEBIAN" "$P/DEBIAN/postinst" "$P/DEBIAN/prerm" "$P/DEBIAN/postrm"
 chmod 0644 "$P/DEBIAN/control" "$P/DEBIAN/triggers" "$P/DEBIAN/conffiles"
 
@@ -157,7 +159,7 @@ LOG="$ROOT/project-builds/logs/$NAME.md"
   echo "- **Built:** $(date -u +%Y-%m-%dT%H:%MZ) from git commit \`$(git -C "$ROOT" rev-parse --short HEAD)\`$(git -C "$ROOT" diff --quiet || echo ' (with uncommitted changes)')"
   echo "- **Editor:** Code - OSS $EDITOR_TAG, run $(jq -r .run_id "$ROOT/build/editor-version.json"), sha256 \`$(jq -r .sha256 "$ROOT/build/editor-version.json" | cut -c1-16)…\`"
   echo "- **Runtime:** $(head -1 "$ROOT/build/runtime-manifest.txt" | sed 's/^# //')"
-  echo "- **Depends:** bubblewrap, python3, python3-gi, gir1.2-gtk-4.0, apparmor"
+  echo "- **Depends:** bubblewrap, python3, python3-gi, gir1.2-gtk-4.0, apparmor, xserver-xephyr, python3-xlib, xauth"
 } > "$LOG"
 echo "Built: $DEB"
 echo "Summary: $LOG"

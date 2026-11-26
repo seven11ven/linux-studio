@@ -17,6 +17,8 @@ DEST="$ROOT/build-cache/runtime/$(date -u +%Y-%m-%d)"
 PACKAGES=(
   # shell and basic tools
   bash coreutils procps less git ca-certificates curl iproute2 gpgv xz-utils bubblewrap
+  # private X11 display (Phase 6): keeps the editor filling the Linux Studio window; xdpyinfo for --self-test
+  matchbox-window-manager x11-utils
   # languages and build tools
   python3 python3-pip python3-venv nodejs npm gcc g++ clang make cmake
   # fonts

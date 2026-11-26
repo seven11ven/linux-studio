@@ -19,10 +19,10 @@ PALETTES = {
                        "#6f7d77", "#f7a29c", "#7fd8b2", "#f5c27c", "#b2e2f8", "#dcc0f6", "#a9e8cd", "#ffffff"]),
     "light": dict(bg="#eef1f0", surface="#ffffff", panel="#f5f7f6", ink="#17201d", muted="#5b6762", line="#d5dcd9",
                   accent="#1f7a5c", accent_ink="#ffffff", accent_soft="#dcefe7", warn="#a35a00", warn_soft="#fbeedb",
-                  bad="#b3261e", bad_soft="#fbe3e1", term="#0f1513", term_ink="#cfe3da",
+                  bad="#b3261e", bad_soft="#fbe3e1", term="#f5f7f6", term_ink="#17201d",   # light terminal: hints stay readable
                   kw="#1f7a5c", str="#9a5b00", num="#a35a00", fn="#1d5f8a", type="#0f6b4c", comment="#7a8781", var="#17201d",
-                  ansi=["#2c3732", "#f2817a", "#4cc296", "#f0a950", "#8fd3f4", "#c9a0f0", "#7fd8b2", "#cfe3da",
-                        "#6f7d77", "#f7a29c", "#7fd8b2", "#f5c27c", "#b2e2f8", "#dcc0f6", "#a9e8cd", "#ffffff"]),
+                  ansi=["#17201d", "#b3261e", "#1f7a5c", "#8a5300", "#1d5f8a", "#7a3e9d", "#0f6b4c", "#5b6762",
+                        "#5b6762", "#d0392f", "#26946f", "#a35a00", "#2a78ad", "#9450bd", "#13845e", "#2c3732"]),
 }
 ANSI = ["Black", "Red", "Green", "Yellow", "Blue", "Magenta", "Cyan", "White"]
 
@@ -80,7 +80,7 @@ def theme(name, kind, p):
         "panel.background": p["panel"], "panel.border": p["line"], "panelTitle.activeForeground": p["ink"],
         "panelTitle.activeBorder": p["accent"], "panelTitle.inactiveForeground": p["muted"],
         "terminal.background": p["term"], "terminal.foreground": p["term_ink"], "terminalCursor.foreground": p["accent"],
-        "terminal.selectionBackground": "#4cc29644", "terminal.border": p["line"],
+        "terminal.selectionBackground": p["accent_soft"], "terminal.border": p["line"],
         # status bar
         "statusBar.background": p["bg"], "statusBar.foreground": p["muted"], "statusBar.border": p["line"],
         "statusBar.noFolderBackground": p["bg"], "statusBar.debuggingBackground": p["warn"],

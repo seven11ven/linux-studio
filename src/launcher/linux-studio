@@ -13,12 +13,14 @@
 # Usage:
 #   linux-studio                          start the editor
 #   linux-studio --network                open the "Approved websites" window
+#   linux-studio --settings               open Linux Studio's settings (clipboard, display)
 #   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
 #   linux-studio --set-project-folder P   choose the project folder
 #   linux-studio --shell [-c COMMAND]     open a terminal in the same sandbox (testing/debugging)
 #   linux-studio --self-test              check that the sandbox works on this computer
 #   linux-studio --gpu                    allow the graphics card (off by default for privacy)
-#   linux-studio --allow-x11              allow running on an X11 desktop (less safe than Wayland; see the message)
+#   linux-studio --unsafe-direct-x11      X11 without the private display (NOT recommended: code inside could read
+#                                         your screen and type into other windows)
 #   linux-studio --editor-dir D --runtime-dir D   use a development build instead of /opt/linux-studio
 set -euo pipefail
 
@@ -70,11 +72,22 @@ validate_project_folder() {
   printf '%s\n' "$p"
 }
 
+# Settings file: simple KEY=value lines, read without ever executing it. Written only by this launcher.
+get_setting() {   # get_setting KEY DEFAULT
+  local line=""; [[ -f "$CONFIG_FILE" ]] && line="$(grep -m1 "^$1=" "$CONFIG_FILE" || true)"
+  if [[ -n "$line" ]]; then printf '%s\n' "${line#*=}"; else printf '%s\n' "$2"; fi
+}
+set_setting() {   # set_setting KEY VALUE  (keeps every other setting; replaces the file in one step)
+  mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+  { [[ -f "$CONFIG_FILE" ]] && grep -v "^$1=" "$CONFIG_FILE" || true; printf '%s=%s\n' "$1" "$2"; } > "$CONFIG_FILE.tmp"
+  chmod 600 "$CONFIG_FILE.tmp"; mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+}
+
 save_project_folder() {
   local p; p="$(validate_project_folder "$1")"
   mkdir -p -- "$p"
   mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
-  printf 'PROJECT_FOLDER=%s\n' "$p" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+  set_setting PROJECT_FOLDER "$p"
   echo "Project folder set to: $p"
 }
 
@@ -98,18 +111,24 @@ first_run() {
 }
 
 # ---------- arguments ----------
-MODE=editor; GPU=0; ALLOW_X11=0; SHELL_CMD=()
+MODE=editor; GPU=0; UNSAFE_X11=0; SHELL_CMD=()
 while (( $# )); do
   case "$1" in
     --set-project-folder) (( $# >= 2 )) || die "--set-project-folder needs a path"; save_project_folder "$2"; exit 0 ;;
     --validate-project-folder) validate_project_folder "${2:-}"; exit 0 ;;   # used by the first-run window
     --network) exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" ;;
+    --settings) exec /usr/bin/python3 "$SHARE/settings/settings_window.py" "$SELF" ;;
+    --get-clipboard) get_setting CLIPBOARD paste-only; exit 0 ;;   # used by the Settings window and the clipboard bridge
+    --set-clipboard)
+      [[ "${2:-}" == paste-only || "${2:-}" == both ]] || die "--set-clipboard needs paste-only or both"
+      set_setting CLIPBOARD "$2"; echo "Clipboard: $2"; exit 0 ;;
     --toolchains) MODE=toolchains-ui ;;
     --toolchains-worker) MODE=toolchains-worker ;;   # internal: started by the Toolchains explorer
     --self-test) MODE=selftest ;;
     --shell) MODE=shell; shift; SHELL_CMD=("$@"); break ;;
     --gpu) GPU=1 ;;
-    --allow-x11) ALLOW_X11=1 ;;
+    --allow-x11) echo "linux-studio: --allow-x11 is no longer needed: X11 desktops now get a private, isolated display." >&2 ;;
+    --unsafe-direct-x11) UNSAFE_X11=1 ;;
     --editor-dir) EDITOR_DIR="$(realpath -- "${2:?}")"; shift ;;
     --runtime-dir) RUNTIME_DIR="$(realpath -- "${2:?}")"; shift ;;
     -h|--help) sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -151,6 +170,13 @@ if [[ $MODE == selftest ]]; then
     t "No network devices except loopback"       "[ \"\$(ip -o link | wc -l)\" = 1 ]"
     t "No direct internet"                       "! curl --noproxy \"*\" -s -m 5 https://example.com"
     t "Proxy bridge is running"                  "exec 3<>/dev/tcp/127.0.0.1/3128"
+    if [ "${LS_PRIVATE_X11:-}" = 1 ]; then
+      t "X11: only Linux Studio'"'"'s private display is visible"  "[ \"\$(ls /tmp/.X11-unix | wc -l)\" = 1 ] && [ \"/tmp/.X11-unix/X\${DISPLAY#:}\" = \"\$(ls -d /tmp/.X11-unix/*)\" ]"
+      t "X11: private display is running"                        "xdpyinfo >/dev/null"
+      t "X11: no fake-keyboard (XTEST) on the private display"   "! xdpyinfo -queryExtensions | grep -q XTEST"
+    elif [ -n "${DISPLAY:-}" ]; then
+      echo "INFO  X11 direct mode (--unsafe-direct-x11): code inside could see your other windows"
+    fi
     if /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1; then
       echo "INFO  Inner sandboxes available (editor web-content sandbox and Rust installer sandbox are on)"
     else
@@ -167,7 +193,10 @@ mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOM
 RUNTIME_TMP="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/linux-studio.XXXXXXXX")"
 PROXY_PID=""
 cleanup() {
-  if [[ -n "$PROXY_PID" ]]; then kill "$PROXY_PID" 2>/dev/null || true; wait "$PROXY_PID" 2>/dev/null || true; fi
+  local p
+  for p in "${BRIDGE_PID:-}" "${XEPHYR_PID:-}" "$PROXY_PID"; do
+    if [[ -n "$p" ]]; then kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; fi
+  done
   rm -rf -- "$RUNTIME_TMP"
   [[ -z "${SELFTEST_DIR:-}" ]] || rm -rf -- "$SELFTEST_DIR"
 }
@@ -236,27 +265,77 @@ if [[ $MODE == editor ]]; then
 fi
 if (( GPU )) && [[ -d /dev/dri ]]; then ARGS+=(--dev-bind /dev/dri /dev/dri); fi
 
+# ---------- X11: a private display (Xephyr) so code inside can't see or type into your other windows ----------
+# Xephyr and the clipboard bridge each run in a small sandbox (security review, Phase 6): only the system's
+# programs and settings (/usr, /etc), no home or other disks, a clean environment and no special permissions.
+X_SANDBOX_BASE=(--unshare-all --die-with-parent --new-session --clearenv --cap-drop ALL
+                --ro-bind /usr /usr --ro-bind /etc /etc --symlink usr/bin /bin --symlink usr/sbin /sbin
+                --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run
+                --setenv PATH /usr/bin:/bin --setenv HOME /tmp --setenv LANG C.UTF-8)
+setup_x11() {   # setup_x11 HOST_DISPLAY_NUMBER
+  local h="$1" x_sock="/tmp/.X11-unix/X$1" xauth_src="${XAUTHORITY:-$HOME/.Xauthority}"
+  [[ -S "$x_sock" ]] || die "X11 display :$h has no socket at $x_sock"
+  # Host login cookie as a "wildcard" entry, so it works from inside sandboxes (different computer name).
+  : > "$RUNTIME_TMP/host.xauth"
+  if [[ -f "$xauth_src" ]]; then   # (cookies only ever travel through pipes, never command arguments)
+    XAUTHORITY="$xauth_src" xauth nlist ":$h" 2>/dev/null | sed 's/^..../ffff/' | xauth -f "$RUNTIME_TMP/host.xauth" nmerge - 2>/dev/null || true
+  fi
+  if (( UNSAFE_X11 )); then
+    warn "--unsafe-direct-x11: code inside Linux Studio could read your screen and type into other windows."
+    ARGS+=(--ro-bind "$x_sock" "$x_sock" --setenv DISPLAY ":$h"
+           --ro-bind "$RUNTIME_TMP/host.xauth" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority)
+    return
+  fi
+  command -v Xephyr >/dev/null || die "the 'xserver-xephyr' package is needed for Linux Studio's private X11 display"
+  local n=7; [[ "$h" == 7 ]] && n=8
+  local xdir="$RUNTIME_TMP/x11"; mkdir -m 0700 "$xdir"
+  # A fresh random cookie: only Linux Studio and the bridge can connect to the private display.
+  local cookie; cookie="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+  printf 'add :%s MIT-MAGIC-COOKIE-1 %s\n' "$n" "$cookie" | xauth -f "$RUNTIME_TMP/nested.local" source - 2>/dev/null
+  xauth -f "$RUNTIME_TMP/nested.local" nlist ":$n" | sed 's/^..../ffff/' | xauth -f "$RUNTIME_TMP/nested.xauth" nmerge - 2>/dev/null
+  rm -f "$RUNTIME_TMP/nested.local"
+  # The bridge's X library needs cookies named for its own (fixed) computer name instead of wildcards.
+  printf 'add ls-bridge/unix:%s MIT-MAGIC-COOKIE-1 %s\n' "$n" "$cookie" | xauth -f "$RUNTIME_TMP/bridge.xauth" source - 2>/dev/null
+  local host_cookie=""
+  [[ -f "$xauth_src" ]] && host_cookie="$(XAUTHORITY="$xauth_src" xauth list ":$h" 2>/dev/null | awk '$2=="MIT-MAGIC-COOKIE-1"{print $3; exit}')"
+  [[ -z "$host_cookie" ]] || printf 'add ls-bridge/unix:%s MIT-MAGIC-COOKIE-1 %s\n' "$h" "$host_cookie" | xauth -f "$RUNTIME_TMP/bridge.xauth" source - 2>/dev/null
+  [[ -f "$RUNTIME_TMP/bridge.xauth" ]] || : > "$RUNTIME_TMP/bridge.xauth"
+  local size; size="$(DISPLAY=":$h" XAUTHORITY="$xauth_src" /usr/bin/python3 -c '
+from Xlib import display
+s = display.Display().screen(); print(f"{int(s.width_in_pixels*0.85)}x{int(s.height_in_pixels*0.85)}")' 2>/dev/null || echo 1280x800)"
+  # Xephyr in its own sandbox: sees your display socket and its own socket folder, not your files.
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --bind "$xdir" /tmp/.X11-unix --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --ro-bind "$RUNTIME_TMP/host.xauth" /run/host.xauth --ro-bind "$RUNTIME_TMP/nested.xauth" /run/nested.xauth \
+    --setenv DISPLAY ":$h" --setenv XAUTHORITY /run/host.xauth \
+    Xephyr ":$n" -auth /run/nested.xauth -title "Linux Studio" -resizeable -screen "$size" \
+      -nolisten tcp -nolisten local -no-host-grab \
+      -extension XTEST -extension GLX -extension XVideo -extension MIT-SCREEN-SAVER -extension X-Resource >/dev/null 2>&1 &
+  XEPHYR_PID=$!
+  local i; for i in $(seq 100); do [[ -S "$xdir/X$n" ]] && break; sleep 0.1; done
+  [[ -S "$xdir/X$n" ]] || die "Linux Studio's private X11 display didn't start"
+  # Clipboard bridge in its own sandbox: the two display sockets + your settings folder (read-only).
+  "$BWRAP" "${X_SANDBOX_BASE[@]}" --bind "$xdir" /tmp/.X11-unix --ro-bind "$x_sock" "/tmp/.X11-unix/X$h" \
+    --hostname ls-bridge --ro-bind "$RUNTIME_TMP/bridge.xauth" /run/bridge.xauth --setenv XAUTHORITY /run/bridge.xauth \
+    --ro-bind "$CONFIG_DIR" /run/config --ro-bind "$SHARE/display" /run/display \
+    /usr/bin/python3 /run/display/clipboard_bridge.py --host ":$h" --nested ":$n" --config-dir /run/config &
+  BRIDGE_PID=$!
+  # The editor sees ONLY the private display.
+  ARGS+=(--ro-bind "$xdir/X$n" "/tmp/.X11-unix/X$n" --setenv DISPLAY ":$n"
+         --ro-bind "$RUNTIME_TMP/nested.xauth" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority
+         --setenv LS_PRIVATE_X11 1)
+}
+
 EDITOR_FLAGS=()
+# Self-test on an X11 desktop: start the private display too, so its isolation can be checked.
+if [[ -n "${SELFTEST_DIR:-}" && -z "${WAYLAND_DISPLAY:-}" && "${DISPLAY:-}" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
+  setup_x11 "${BASH_REMATCH[1]}"
+fi
 if [[ $MODE == editor ]]; then
   if [[ -n "${WAYLAND_DISPLAY:-}" && -S "${XDG_RUNTIME_DIR:-/nonexistent}/$WAYLAND_DISPLAY" ]]; then
     ARGS+=(--ro-bind "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" /run/user/1000/wayland-0 --setenv WAYLAND_DISPLAY wayland-0)
     EDITOR_FLAGS+=(--ozone-platform=wayland)
   elif [[ "${DISPLAY:-}" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
-    (( ALLOW_X11 )) || die "only an X11 display was found. On X11, code inside the sandbox could read your screen and type
-  into your other windows (for example a terminal), which would break the sandbox. Log in with a Wayland session
-  (most current desktops offer one), or start with --allow-x11 if you accept this risk."
-    warn "X11 allowed by --allow-x11: code inside Linux Studio could read your screen and type into other windows."
-    X_SOCK="/tmp/.X11-unix/X${BASH_REMATCH[1]}"
-    [[ -S "$X_SOCK" ]] || die "X11 display $DISPLAY has no socket at $X_SOCK"
-    ARGS+=(--ro-bind "$X_SOCK" "$X_SOCK" --setenv DISPLAY "$DISPLAY")
-    XAUTH_SRC="${XAUTHORITY:-$HOME/.Xauthority}"
-    if [[ -f "$XAUTH_SRC" ]]; then
-      if command -v xauth >/dev/null; then
-        XAUTHORITY="$XAUTH_SRC" xauth extract "$RUNTIME_TMP/Xauthority" "$DISPLAY" 2>/dev/null || true
-      fi
-      [[ -s "$RUNTIME_TMP/Xauthority" ]] || cp -- "$XAUTH_SRC" "$RUNTIME_TMP/Xauthority"
-      ARGS+=(--ro-bind "$RUNTIME_TMP/Xauthority" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority)
-    fi
+    setup_x11 "${BASH_REMATCH[1]}"
     EDITOR_FLAGS+=(--ozone-platform=x11)
   else
     die "no display found (WAYLAND_DISPLAY or DISPLAY)"
@@ -273,6 +352,9 @@ START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo 
     /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 || set -- "$@" --no-sandbox
   fi
   mkdir -p "$HOME/.config/go/telemetry" && printf "off\n" > "$HOME/.config/go/telemetry/mode"   # Go telemetry off
+  if [ "${LS_PRIVATE_X11:-}" = 1 ] && [ -x /usr/bin/matchbox-window-manager ]; then
+    /usr/bin/matchbox-window-manager -use_titlebar no >/dev/null 2>&1 &   # keeps the editor filling the window
+  fi
   for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
   [ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
   export PATH

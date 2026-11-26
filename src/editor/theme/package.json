@@ -1,17 +1,81 @@
 {
   "name": "linux-studio-themes",
-  "displayName": "Linux Studio Themes",
-  "description": "Linux Studio's dark and light colour themes, matching the approved design mockups.",
+  "displayName": "Linux Studio Themes and Welcome",
+  "description": "Linux Studio's dark and light colour themes (matching the approved mockups) and a short welcome walkthrough. Data only, no code.",
   "version": "1.0.0",
   "publisher": "linux-studio",
   "license": "MIT",
-  "engines": { "vscode": "^1.80.0" },
-  "categories": ["Themes"],
-  "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
   "contributes": {
     "themes": [
-      { "id": "Linux Studio Dark", "label": "Linux Studio Dark", "uiTheme": "vs-dark", "path": "./themes/linux-studio-dark.json" },
-      { "id": "Linux Studio Light", "label": "Linux Studio Light", "uiTheme": "vs", "path": "./themes/linux-studio-light.json" }
+      {
+        "id": "Linux Studio Dark",
+        "label": "Linux Studio Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/linux-studio-dark.json"
+      },
+      {
+        "id": "Linux Studio Light",
+        "label": "Linux Studio Light",
+        "uiTheme": "vs",
+        "path": "./themes/linux-studio-light.json"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "linux-studio-start",
+        "title": "Get started with Linux Studio",
+        "description": "A private code editor that can only see your project folder.",
+        "steps": [
+          {
+            "id": "project-folder",
+            "title": "Your project folder",
+            "description": "Linux Studio can only see one folder, shown here as **project-folder**. Your home folder, other drives and system files are invisible to it. To change the folder, run `linux-studio --set-project-folder` in a terminal on your computer.",
+            "media": {
+              "image": "media/welcome.svg",
+              "altText": "Linux Studio icon"
+            }
+          },
+          {
+            "id": "websites",
+            "title": "Websites you approve",
+            "description": "Extensions and terminal tools can only reach websites you approve. A pop-up asks each time something new tries to connect. Open **Approved websites** from the Linux Studio menu entry to review the list.",
+            "media": {
+              "image": "media/welcome.svg",
+              "altText": "Linux Studio icon"
+            }
+          },
+          {
+            "id": "toolchains",
+            "title": "More languages",
+            "description": "Python, Node.js, C/C++ and Git are built in. Add other versions from official sources with **Toolchains** in the Linux Studio menu entry; every download is verified.",
+            "media": {
+              "image": "media/welcome.svg",
+              "altText": "Linux Studio icon"
+            }
+          },
+          {
+            "id": "trust",
+            "title": "Trusting a folder",
+            "description": "New folders open in Restricted Mode. Trust a folder you know to use the terminal, tasks and debugging. Linux Studio's sandbox protects you either way.",
+            "media": {
+              "image": "media/welcome.svg",
+              "altText": "Linux Studio icon"
+            }
+          }
+        ]
+      }
     ]
   }
 }

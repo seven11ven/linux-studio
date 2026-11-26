@@ -119,6 +119,15 @@ jobs:
           rm -rf "${found[@]}"
           printf 'Removed %s\n' "${found[@]}"
 
+      - name: Add Linux Studio branding (icon and empty-editor watermark)
+        run: |
+          APP=VSCode-linux-x64/resources/app
+          for f in code-icon.svg letterpress-dark.svg letterpress-light.svg letterpress-hcDark.svg letterpress-hcLight.svg; do
+            [[ -f "$APP/out/media/$f" ]] || { echo "Expected $APP/out/media/$f; check the build layout"; exit 1; }
+            cp "studio/src/editor/branding/$f" "$APP/out/media/$f"
+          done
+          cp studio/src/editor/branding/code.png "$APP/resources/linux/code.png"
+
       - name: Add Linux Studio themes (colour data only)
         run: |
           DEST=VSCode-linux-x64/resources/app/extensions/linux-studio-themes

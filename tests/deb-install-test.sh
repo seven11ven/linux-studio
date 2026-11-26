@@ -39,6 +39,8 @@ t "AppArmor profile is valid (apparmor_parser syntax check)" 'apparmor_parser -Q
 t "AppArmor: everything inside runs with capabilities denied" 'grep -q "px /\*\* -> linux-studio-bwrap//&linux-studio-unpriv" /etc/apparmor.d/io.github.seven11ven.linuxstudio && grep -q "audit deny capability" /etc/apparmor.d/io.github.seven11ven.linuxstudio'
 t "Runtime /tmp keeps its sticky bit" '[ "$(stat -c %a /opt/linux-studio/runtime/tmp)" = 1777 ]'
 t "Desktop file Exec/TryExec point to a shipped file" 'grep -q "^Exec=/usr/bin/linux-studio$" /usr/share/applications/io.github.seven11ven.linuxstudio.desktop && [ -x /usr/bin/linux-studio ]'
+t "Private X11 display parts installed (Xephyr, python3-xlib, bridge, settings window)" '[ -x /usr/bin/Xephyr ] && python3 -c "import Xlib" && [ -f /opt/linux-studio/share/display/clipboard_bridge.py ] && [ -f /opt/linux-studio/share/settings/settings_window.py ]'
+t "linux-studio --get-clipboard defaults to paste-only" '[ "$(HOME=/root /usr/bin/linux-studio --get-clipboard)" = paste-only ]'
 t "Icon file matches Icon= name" '[ -f /usr/share/icons/hicolor/scalable/apps/io.github.seven11ven.linuxstudio.svg ]'
 t "Editor and runtime present" '[ -x /opt/linux-studio/editor/linux-studio-editor ] && [ -x /opt/linux-studio/runtime/usr/bin/bash ]'
 t "No setuid/setgid files shipped" '[ -z "$(find /opt/linux-studio -perm /6000 -type f)" ]'

@@ -112,7 +112,7 @@
     "terminal.background": "#0a0e0d",
     "terminal.foreground": "#cfe3da",
     "terminalCursor.foreground": "#4cc296",
-    "terminal.selectionBackground": "#4cc29644",
+    "terminal.selectionBackground": "#1c3a2f",
     "terminal.border": "#2c3732",
     "statusBar.background": "#0f1412",
     "statusBar.foreground": "#97a59f",

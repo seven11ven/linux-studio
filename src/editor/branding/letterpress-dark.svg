@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Linux Studio watermark for the empty editor area (dark theme). Single colour, like VS Code's own letterpress. -->
+  <g opacity=".3" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8" y="8" width="112" height="112" rx="24" stroke-width="4"/>
+    <path d="M34 36v56h28" stroke-width="10"/>
+    <path d="M96 42c-4-5-10-7-16-7c-9 0-15 5-15 12c0 15 32 8 32 25c0 8-7 14-17 14c-7 0-13-3-17-8" stroke-width="9"/>
+  </g>
+</svg>

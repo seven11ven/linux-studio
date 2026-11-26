@@ -3,5 +3,7 @@
   "window.autoDetectColorScheme": true,
   "workbench.preferredDarkColorTheme": "Linux Studio Dark",
   "workbench.preferredLightColorTheme": "Linux Studio Light",
-  "workbench.colorTheme": "Linux Studio Dark"
+  "workbench.colorTheme": "Linux Studio Dark",
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "workbench.startupEditor": "none"
 }

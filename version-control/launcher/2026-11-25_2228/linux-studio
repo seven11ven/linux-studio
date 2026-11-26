@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# Linux Studio launcher: builds the sandbox ("locked room") with bubblewrap and starts the editor in it.
+#
+# Inside the sandbox the editor can see ONLY:
+#   /                 the bundled mini-Linux (read-only)
+#   /app              the editor itself (read-only)
+#   /home/user        Linux Studio's own private settings/extensions folder
+#   /project-folder   the one project folder you chose
+# It has no network devices of its own: its only way out is the approved-websites proxy (HTTPS only,
+# sites you approve), plus a fake identity (computer "studio", user "user", new random machine-id every
+# launch), no /sys, and no GPU unless --gpu.
+#
+# Usage:
+#   linux-studio                          start the editor
+#   linux-studio --network                open the "Approved websites" window
+#   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
+#   linux-studio --set-project-folder P   choose the project folder
+#   linux-studio --shell [-c COMMAND]     open a terminal in the same sandbox (testing/debugging)
+#   linux-studio --self-test              check that the sandbox works on this computer
+#   linux-studio --gpu                    allow the graphics card (off by default for privacy)
+#   linux-studio --allow-x11              allow running on an X11 desktop (less safe than Wayland; see the message)
+#   linux-studio --editor-dir D --runtime-dir D   use a development build instead of /opt/linux-studio
+set -euo pipefail
+
+PROG="linux-studio"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linux-studio"
+CONFIG_FILE="$CONFIG_DIR/config"
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/linux-studio"
+SANDBOX_HOME="$STATE_DIR/home"
+
+SELF="$(readlink -f "$0")"
+HERE="$(dirname "$SELF")"
+if [[ -d /opt/linux-studio/share ]]; then SHARE=/opt/linux-studio/share; else SHARE="$(cd "$HERE/.." && pwd)"; fi
+SETTINGS_SRC="$SHARE/editor/default-settings.json"
+INITIAL_SETTINGS="$SHARE/editor/initial-settings.json"
+APPLY_SETTINGS="$SHARE/launcher/apply_settings.py"
+FIRST_RUN="$SHARE/first-run/first_run.py"
+NETWORK_DIR="$SHARE/network"
+NETWORK_CONFIG="$CONFIG_DIR/network.json"
+TOOLCHAINS_DIR="$STATE_DIR/toolchains"
+TOOLCHAINS_SRC="$SHARE/toolchains"
+EDITOR_DIR=/opt/linux-studio/editor
+RUNTIME_DIR=/opt/linux-studio/runtime
+
+die()  { echo "$PROG: $*" >&2; exit 1; }
+warn() { echo "$PROG: warning: $*" >&2; }
+
+# ---------- project folder: validate, save, load ----------
+
+# Prints the cleaned absolute path, or fails with a reason. Used by --set-project-folder and the first-run window.
+validate_project_folder() {
+  local raw="$1" p
+  [[ -n "$raw" ]] || die "no folder given"
+  [[ "$raw" != *$'\n'* ]] || die "folder names with line breaks are not supported"
+  raw="${raw/#\~/$HOME}"
+  p="$(realpath -m -- "$raw")"
+  case "$p" in
+    /|/bin|/boot|/dev|/etc|/lib|/lib32|/lib64|/libx32|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var|/home|/media|/mnt)
+      die "'$p' is a system folder. Choose or create a dedicated folder, e.g. ~/LinuxStudio/project-folder" ;;
+    /bin/*|/boot/*|/dev/*|/etc/*|/lib/*|/lib64/*|/proc/*|/run/*|/sbin/*|/sys/*|/usr/*|/var/*)
+      die "'$p' is inside a system folder" ;;
+  esac
+  local home; home="$(realpath -m -- "$HOME")"
+  [[ "$p" != "$home" ]] || die "that is your whole home folder. Choose a dedicated folder inside it"
+  [[ "$home/" != "$p/"* ]] || die "'$p' contains your home folder"
+  local s; for s in "$STATE_DIR" "$CONFIG_DIR"; do
+    s="$(realpath -m -- "$s")"
+    [[ "$s/" != "$p/"* && "$p/" != "$s/"* ]] || die "'$p' overlaps Linux Studio's own settings folder ($s)"
+  done
+  printf '%s\n' "$p"
+}
+
+save_project_folder() {
+  local p; p="$(validate_project_folder "$1")"
+  mkdir -p -- "$p"
+  mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+  printf 'PROJECT_FOLDER=%s\n' "$p" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+  echo "Project folder set to: $p"
+}
+
+# Read the config without executing it (never `source` a settings file).
+load_project_folder() {
+  [[ -f "$CONFIG_FILE" ]] || return 1
+  local line; line="$(grep -m1 '^PROJECT_FOLDER=' "$CONFIG_FILE" || true)"
+  PROJECT_FOLDER="${line#PROJECT_FOLDER=}"
+  [[ -n "$PROJECT_FOLDER" && -d "$PROJECT_FOLDER" ]] || return 1
+  PROJECT_FOLDER="$(validate_project_folder "$PROJECT_FOLDER")"
+}
+
+first_run() {
+  if [[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]] && /usr/bin/python3 -c 'import gi; gi.require_version("Gtk","4.0")' 2>/dev/null; then
+    /usr/bin/python3 "$FIRST_RUN" "$SELF" || exit 0     # window closed with "Quit"
+  else
+    echo "Linux Studio can only see one folder. Choose where your project folder should live."
+    local ans; read -r -p "Project folder [~/LinuxStudio/project-folder]: " ans
+    save_project_folder "${ans:-$HOME/LinuxStudio/project-folder}"
+  fi
+}
+
+# ---------- arguments ----------
+MODE=editor; GPU=0; ALLOW_X11=0; SHELL_CMD=()
+while (( $# )); do
+  case "$1" in
+    --set-project-folder) (( $# >= 2 )) || die "--set-project-folder needs a path"; save_project_folder "$2"; exit 0 ;;
+    --validate-project-folder) validate_project_folder "${2:-}"; exit 0 ;;   # used by the first-run window
+    --network) exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" ;;
+    --toolchains) MODE=toolchains-ui ;;
+    --toolchains-worker) MODE=toolchains-worker ;;   # internal: started by the Toolchains explorer
+    --self-test) MODE=selftest ;;
+    --shell) MODE=shell; shift; SHELL_CMD=("$@"); break ;;
+    --gpu) GPU=1 ;;
+    --allow-x11) ALLOW_X11=1 ;;
+    --editor-dir) EDITOR_DIR="$(realpath -- "${2:?}")"; shift ;;
+    --runtime-dir) RUNTIME_DIR="$(realpath -- "${2:?}")"; shift ;;
+    -h|--help) sed -n '2,20p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1 (see --help)" ;;
+  esac
+  shift
+done
+
+# Installed package: Linux Studio's own copy of the system bwrap, which is the only program the Linux Studio
+# AppArmor profile allows to create sandboxes (Ubuntu 24.04+). Development: the system bwrap.
+BWRAP=/opt/linux-studio/libexec/bwrap
+if [[ ! -x "$BWRAP" ]]; then
+  if [[ "$SELF" == /opt/linux-studio/* ]]; then BWRAP=/usr/bin/bwrap   # installed: never search PATH (review #5)
+  else BWRAP="$(command -v bwrap || true)"; fi
+fi
+[[ -n "$BWRAP" ]] || die "bubblewrap (bwrap) is not installed"
+if [[ $MODE == toolchains-ui ]]; then
+  WORKER_CMD=("$SELF" --runtime-dir "$RUNTIME_DIR" --toolchains-worker)
+  exec /usr/bin/python3 "$TOOLCHAINS_SRC/explorer.py" -- "${WORKER_CMD[@]}"
+fi
+[[ -x "$RUNTIME_DIR/usr/bin/bash" ]] || die "runtime not found at $RUNTIME_DIR (use --runtime-dir)"
+if [[ $MODE == editor ]]; then
+  [[ -x "$EDITOR_DIR/linux-studio-editor" ]] || die "editor not found at $EDITOR_DIR (use --editor-dir)"
+fi
+
+if [[ $MODE == selftest ]]; then
+  # A throwaway project folder; the checks never touch your real one.
+  SELFTEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linux-studio-selftest.XXXXXXXX")"
+  trap 'rm -rf -- "$SELFTEST_DIR"' EXIT INT TERM   # replaced by the full cleanup below (review #6)
+  PROJECT_FOLDER="$SELFTEST_DIR"
+  MODE=shell
+  SHELL_CMD=(-c '
+    ok=0; bad=0
+    t() { if eval "$2" >/dev/null 2>&1; then echo "PASS  $1"; ok=$((ok+1)); else echo "FAIL  $1"; bad=$((bad+1)); fi; }
+    t "Sandbox started"                          true
+    t "Fake computer name (studio)"              "[ \"\$(hostname)\" = studio ]"
+    t "Fake user name (user)"                    "[ \"\$(whoami)\" = user ]"
+    t "Your home folder is hidden"               "[ \"\$(ls -A /home)\" = user ]"
+    t "No network devices except loopback"       "[ \"\$(ip -o link | wc -l)\" = 1 ]"
+    t "No direct internet"                       "! curl --noproxy \"*\" -s -m 5 https://example.com"
+    t "Proxy bridge is running"                  "exec 3<>/dev/tcp/127.0.0.1/3128"
+    if /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1; then
+      echo "INFO  Inner sandboxes available (editor web-content sandbox and Rust installer sandbox are on)"
+    else
+      echo "INFO  Inner sandboxes not allowed here (normal on Ubuntu 24.04+): editor web-content and Rust installer"
+      echo "      sandboxes are off; Linux Studio'"'"'s main sandbox still isolates everything"
+    fi
+    echo; echo "$ok passed, $bad failed"; [ $bad = 0 ]')
+elif [[ $MODE != toolchains-worker ]]; then
+  load_project_folder || { first_run; load_project_folder || die "no project folder set"; }
+fi
+mkdir -p "$SANDBOX_HOME" "$TOOLCHAINS_DIR"; chmod 700 "$STATE_DIR" "$SANDBOX_HOME" "$TOOLCHAINS_DIR"
+
+# ---------- per-launch fake identity (deleted on exit) ----------
+RUNTIME_TMP="$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/linux-studio.XXXXXXXX")"
+PROXY_PID=""
+cleanup() {
+  if [[ -n "$PROXY_PID" ]]; then kill "$PROXY_PID" 2>/dev/null || true; wait "$PROXY_PID" 2>/dev/null || true; fi
+  rm -rf -- "$RUNTIME_TMP"
+  [[ -z "${SELFTEST_DIR:-}" ]] || rm -rf -- "$SELFTEST_DIR"
+}
+trap cleanup EXIT INT TERM
+printf 'root:x:0:0::/root:/usr/sbin/nologin\nuser:x:1000:1000:user:/home/user:/bin/bash\nnobody:x:65534:65534::/nonexistent:/usr/sbin/nologin\n' > "$RUNTIME_TMP/passwd"
+printf 'root:x:0:\nuser:x:1000:\nnogroup:x:65534:\n' > "$RUNTIME_TMP/group"
+printf 'studio\n' > "$RUNTIME_TMP/hostname"
+printf '127.0.0.1 localhost\n127.0.1.1 studio\n::1 localhost\n' > "$RUNTIME_TMP/hosts"
+od -An -tx1 -N16 /dev/urandom | tr -d ' \n' > "$RUNTIME_TMP/machine-id"; echo >> "$RUNTIME_TMP/machine-id"
+: > "$RUNTIME_TMP/resolv.conf"   # no name servers: names are looked up only by the proxy, outside
+
+# ---------- approved-websites proxy (stopped in cleanup) ----------
+mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
+if [[ $MODE == toolchains-worker ]]; then   # official download sites only, no pop-ups
+  /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" \
+    --fixed-allowlist "$TOOLCHAINS_SRC/official-sites.json" --parent-pid $$ &
+else
+  /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" --config "$NETWORK_CONFIG" \
+    --prompt "$NETWORK_DIR/approval_prompt.py" --parent-pid $$ &
+fi
+PROXY_PID=$!
+for _ in $(seq 50); do [[ -S "$RUNTIME_TMP/proxy.sock" ]] && break; sleep 0.1; done
+[[ -S "$RUNTIME_TMP/proxy.sock" ]] || die "the network proxy didn't start"
+
+# ---------- sandbox ----------
+ARGS=(
+  --unshare-all --die-with-parent --new-session --clearenv --cap-drop ALL
+  --hostname studio --uid 1000 --gid 1000
+  --ro-bind "$RUNTIME_DIR" /
+  --proc /proc --dev /dev --tmpfs /tmp --tmpfs /run --dir /run/user/1000 --chmod 0700 /run/user/1000
+  --ro-bind "$RUNTIME_TMP/passwd" /etc/passwd
+  --ro-bind "$RUNTIME_TMP/group" /etc/group
+  --ro-bind "$RUNTIME_TMP/hostname" /etc/hostname
+  --ro-bind "$RUNTIME_TMP/hosts" /etc/hosts
+  --ro-bind "$RUNTIME_TMP/machine-id" /etc/machine-id
+  --ro-bind "$RUNTIME_TMP/resolv.conf" /etc/resolv.conf
+  --dir /run/linux-studio
+  --ro-bind "$RUNTIME_TMP/proxy.sock" /run/linux-studio/proxy.sock
+  --ro-bind "$NETWORK_DIR/net_bridge.py" /run/linux-studio/net_bridge.py
+  --setenv GOTOOLCHAIN local --setenv CARGO_HOME /home/user/.cargo
+  --setenv HOME /home/user --setenv USER user --setenv LOGNAME user --setenv SHELL /bin/bash
+  --setenv PATH /usr/local/bin:/usr/bin:/bin --setenv LANG C.UTF-8 --setenv TERM xterm-256color
+  --setenv XDG_RUNTIME_DIR /run/user/1000
+  --setenv PIP_DISABLE_PIP_VERSION_CHECK 1 --setenv NPM_CONFIG_UPDATE_NOTIFIER false
+  --setenv NPM_CONFIG_AUDIT false --setenv NPM_CONFIG_FUND false
+  --setenv HTTPS_PROXY http://127.0.0.1:3128 --setenv https_proxy http://127.0.0.1:3128
+  --setenv HTTP_PROXY http://127.0.0.1:3128 --setenv http_proxy http://127.0.0.1:3128
+  --setenv ALL_PROXY http://127.0.0.1:3128 --setenv all_proxy http://127.0.0.1:3128
+  --setenv NO_PROXY localhost,127.0.0.1,::1 --setenv no_proxy localhost,127.0.0.1,::1
+  --chdir /project-folder
+)
+if [[ $MODE == toolchains-worker ]]; then
+  # Downloader sandbox: writes ONLY to the toolchains folder; no project folder, no editor home.
+  ARGS+=(--tmpfs /home/user --bind "$TOOLCHAINS_DIR" /toolchains
+         --ro-bind "$TOOLCHAINS_SRC/keys" /run/linux-studio/keys
+         --ro-bind "$TOOLCHAINS_SRC/worker.py" /run/linux-studio/worker.py)
+else
+  ARGS+=(--bind "$SANDBOX_HOME" /home/user --bind "$PROJECT_FOLDER" /project-folder
+         --ro-bind "$TOOLCHAINS_DIR" /toolchains)
+fi
+if [[ $MODE == editor ]]; then
+  ARGS+=(--ro-bind "$EDITOR_DIR" /app
+         --ro-bind "$SETTINGS_SRC" /run/linux-studio/locked-settings.json
+         --ro-bind "$INITIAL_SETTINGS" /run/linux-studio/initial-settings.json
+         --ro-bind "$APPLY_SETTINGS" /run/linux-studio/apply_settings.py)
+fi
+if (( GPU )) && [[ -d /dev/dri ]]; then ARGS+=(--dev-bind /dev/dri /dev/dri); fi
+
+EDITOR_FLAGS=()
+if [[ $MODE == editor ]]; then
+  if [[ -n "${WAYLAND_DISPLAY:-}" && -S "${XDG_RUNTIME_DIR:-/nonexistent}/$WAYLAND_DISPLAY" ]]; then
+    ARGS+=(--ro-bind "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" /run/user/1000/wayland-0 --setenv WAYLAND_DISPLAY wayland-0)
+    EDITOR_FLAGS+=(--ozone-platform=wayland)
+  elif [[ "${DISPLAY:-}" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
+    (( ALLOW_X11 )) || die "only an X11 display was found. On X11, code inside the sandbox could read your screen and type
+  into your other windows (for example a terminal), which would break the sandbox. Log in with a Wayland session
+  (most current desktops offer one), or start with --allow-x11 if you accept this risk."
+    warn "X11 allowed by --allow-x11: code inside Linux Studio could read your screen and type into other windows."
+    X_SOCK="/tmp/.X11-unix/X${BASH_REMATCH[1]}"
+    [[ -S "$X_SOCK" ]] || die "X11 display $DISPLAY has no socket at $X_SOCK"
+    ARGS+=(--ro-bind "$X_SOCK" "$X_SOCK" --setenv DISPLAY "$DISPLAY")
+    XAUTH_SRC="${XAUTHORITY:-$HOME/.Xauthority}"
+    if [[ -f "$XAUTH_SRC" ]]; then
+      if command -v xauth >/dev/null; then
+        XAUTHORITY="$XAUTH_SRC" xauth extract "$RUNTIME_TMP/Xauthority" "$DISPLAY" 2>/dev/null || true
+      fi
+      [[ -s "$RUNTIME_TMP/Xauthority" ]] || cp -- "$XAUTH_SRC" "$RUNTIME_TMP/Xauthority"
+      ARGS+=(--ro-bind "$RUNTIME_TMP/Xauthority" /run/user/1000/Xauthority --setenv XAUTHORITY /run/user/1000/Xauthority)
+    fi
+    EDITOR_FLAGS+=(--ozone-platform=x11)
+  else
+    die "no display found (WAYLAND_DISPLAY or DISPLAY)"
+  fi
+  (( GPU )) || EDITOR_FLAGS+=(--disable-gpu)
+  EDITOR_FLAGS+=(--password-store=basic)
+fi
+
+# Inside the sandbox: start the proxy bridge (127.0.0.1:3128 -> proxy socket), then the real program.
+START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
+  if [ -e /run/linux-studio/apply_settings.py ]; then /usr/bin/python3 /run/linux-studio/apply_settings.py || exit 1
+    # Under Ubuntu'"'"'s restricted AppArmor design nothing inside may use kernel capabilities, so Chromium'"'"'s own
+    # inner sandbox cannot start; Linux Studio'"'"'s main sandbox still isolates the editor (PM decision).
+    /usr/bin/bwrap --unshare-all --ro-bind / / --proc /proc --dev /dev true >/dev/null 2>&1 || set -- "$@" --no-sandbox
+  fi
+  mkdir -p "$HOME/.config/go/telemetry" && printf "off\n" > "$HOME/.config/go/telemetry/mode"   # Go telemetry off
+  for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
+  [ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
+  export PATH
+  exec "$@"' linux-studio)
+
+# Not `exec`, so the cleanup trap still stops the proxy afterwards.
+if [[ $MODE == toolchains-worker ]]; then
+  # The worker gets a fixed PATH and never the installed toolchains first (security review #1).
+  WORKER_START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo "network bridge failed" >&2; exit 1; }
+  export PATH=/usr/bin:/bin; exec "$@"' linux-studio)
+  "$BWRAP" "${ARGS[@]}" "${WORKER_START[@]}" /usr/bin/python3 /run/linux-studio/worker.py
+elif [[ $MODE == shell ]]; then
+  if (( ${#SHELL_CMD[@]} )); then
+    "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash "${SHELL_CMD[@]}"
+  else
+    "$BWRAP" "${ARGS[@]}" "${START[@]}" /bin/bash -i
+  fi
+else
+  "$BWRAP" "${ARGS[@]}" "${START[@]}" /app/linux-studio-editor "${EDITOR_FLAGS[@]}" \
+    --user-data-dir /home/user/.config/linux-studio \
+    --extensions-dir /home/user/.linux-studio/extensions \
+    /project-folder
+fi
