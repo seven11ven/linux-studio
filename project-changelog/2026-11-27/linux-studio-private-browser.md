@@ -102,3 +102,18 @@ The PM also accepted the proposed terminal command `linux-studio --private-brows
   - The browser still contacts Mozilla's remote-settings service at start, which can't be switched off by policy. Raised with the PM.
 - **Open questions for the PM:** remote settings and certificate revocation checks; whether extensions keep their data between sessions in "forget"
   mode (NoScript shows its welcome tab on every fresh install); the remaining Firefox names inside the browser.
+
+## Update 14:10 UTC: branding findings, PM decisions, rebranding added to the plan
+- **Performed By:** Claude Opus 5.5 (Anthropic), via Claude Code · **Approved By:** Project Manager
+- **Correction:** I had told the PM that "Firefox" remains in "a few places" inside the browser. Checking the engine showed about 690 uses in 72 text
+  files: the window title, the browser's own Settings and Add-ons pages, Help › About, error pages, menus and prompts. Of these, 648 come from one
+  central branding file (`brand.ftl` / `brand.properties`) and 18 lines are hard-coded. Headless screenshots also showed a "Make default" card with
+  the fox mascot, and the add-on site's search box on the Add-ons page.
+- **PM decisions:**
+  - **Rebranding added to the plan** as its own step (after launching): swap the engine's central branding and logos for Studio Browser /
+    Linux Studio when the runtime is built.
+  - **Mozilla remote settings: allowed** (revocation lists and the malicious-extension block list). Per-site OCSP lookups are turned off
+    (`security.OCSP.enabled` 0, stapling kept).
+  - **Forget mode: a fully clean profile on every start** (NoScript's welcome tab and a Bitwarden login each time are accepted).
+- **Changes:** `src/browser/make_policies.py` adds the OCSP preferences (previous version in `version-control/browser/2026-11-27_1405/`);
+  `tests/studio-browser-test.sh` checks them; **15/15** pass. `project-notes/plan.md` gains a "Studio Browser" section with all decisions and steps.

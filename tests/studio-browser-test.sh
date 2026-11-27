@@ -60,6 +60,7 @@ assert p['PasswordManagerEnabled'] is False and p['SanitizeOnShutdown']['Cookies
 assert p['Proxy']['Locked'] and p['Proxy']['HTTPProxy']=='127.0.0.1:3128' and p['DNSOverHTTPS']['Enabled'] is False
 assert p['DisableTelemetry'] and p['DisableFirefoxStudies'] and p['ExtensionSettings']['*']['installation_mode']=='blocked'
 assert p['DownloadDirectory']=='/project-folder/Downloads'
+assert pr['security.OCSP.enabled']['Value']==0 and pr['security.ssl.enable_ocsp_stapling']['Value'] is True
 EOF
 python3 -I "$GEN" --out "$T/x.json" --remember maybe >/dev/null 2>&1 && bad "bad value rejected" || ok "Unknown setting value rejected"
 

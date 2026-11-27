@@ -80,6 +80,39 @@ Toolchains explorer (separate, temporary)    hostname "studio", user "user", ran
 - Add a changelog entry per session in `/project-changelog/YYYY-MM-DD/`.
 - Save prior versions of changed components in `/version-control/`.
 
+## Studio Browser (PM-approved 2026-11-27; blocks dev8)
+Linux Studio's own private browser. Engine: Debian's Firefox ESR (signature-checked archive), shown to users only as **Studio Browser**.
+Approved mockup: screen 9, revision 6 (`project-notes/mockups/linux-studio-mockups.html`). Decisions and research:
+`project-changelog/2026-11-27/linux-studio-private-browser.md`.
+
+**PM decisions:**
+- **Settings:** pages with a side list. Studio Browser is a group with two sub-pages:
+  - Studio Browser: Remember logins, cookies and passwords (**off**), Safe Browsing (**off**)
+  - Web Links: Studio Browser (**default**) or Linux Studio tab
+  - Extensions: uBlock Origin (Debian), NoScript, ClearURLs, Bitwarden (Mozilla-signed, pinned), **all on**
+- **Bitwarden:** its Bitwarden License is accepted as an exception to the open-source rule.
+- **Files:** the browser sees only `project-folder/Downloads`.
+- **Forget mode:** a fully clean profile on every start.
+- **Mozilla remote settings:** allowed (revocation lists, malicious-extension block list). Per-site OCSP lookups are off.
+- **Command:** `linux-studio --studio-browser`.
+
+**Steps:**
+1. ✅ Runtime: `firefox-esr`, `webext-ublock-origin-firefox`, Debian security archive (`scripts/build-runtime.sh`).
+2. ✅ Locked policy file (`src/browser/make_policies.py`), pinned extensions (`scripts/fetch-browser-extensions.sh`), tests
+   (`tests/studio-browser-test.sh`).
+3. Launching: its own sandbox from the same runtime, the proxy and Network inbox, the fake identity, only `Downloads`. Its own private display
+   window "Linux Studio · Studio Browser". Started on demand (a link or `--studio-browser`) through a rate-limited request channel. Profile in
+   memory (forget) or `~/.local/share/linux-studio/browser/` (remember).
+4. **Rebranding (PM 2026-11-27):** when the runtime is built, replace the engine's central branding (name "Studio Browser", 648 text uses) and
+   logos with Linux Studio's. Find and fix the 18 hard-coded "Firefox" lines and the fox mascot pictures, or hide them by policy. Also hide the
+   "Make default" card and the add-on site's search box. Screenshots of the rebranded pages go to the PM for approval. Re-check after every
+   engine security update.
+5. Link routing (`xdg-open`, link router follow Web Links), the Settings reorganization into pages, and Remove my data's new part.
+6. Tests for steps 3–5, then all suites.
+7. jake-lockley security review; fixes approved by the PM.
+8. Docs (programming and feature documentation), changelog, security log.
+9. dev8 build (ask dev or release first), delivered with the network inbox and video full-screen work.
+
 ## Phase 6 — Safe X11: private nested display (Xephyr) + clipboard setting
 
 **Context:** the PM's machine runs **Linux Mint (Cinnamon, X11 by default)** with an AMD GPU. The dev .deb passed `--self-test` 7/7 there, but the

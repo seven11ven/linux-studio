@@ -60,6 +60,11 @@ def build(remember, safe_browsing, ext_on):
         "browser.urlbar.speculativeConnect.enabled": locked(False),
         "browser.newtabpage.activity-stream.feeds.telemetry": locked(False),
         "browser.newtabpage.activity-stream.telemetry": locked(False),
+        # Certificate revocation (PM 2026-11-27): Mozilla's remote settings stay allowed (through the Network inbox), so
+        # revocation lists (CRLite) and the malicious-extension block list keep working. Per-site OCSP lookups would ask
+        # the inbox about almost every site's certificate authority, so they're off; stapled OCSP answers are still used.
+        "security.OCSP.enabled": locked(0),
+        "security.ssl.enable_ocsp_stapling": locked(True),
         # Extensions: only those this file installs; the system folder holds Debian's uBlock Origin
         "extensions.autoDisableScopes": locked(0),
         "extensions.update.enabled": locked(False),
