@@ -102,6 +102,24 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 .steps li{color:var(--muted)}
 .mini-notice{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:calc(6px * var(--rk));background:var(--warn-soft);font-size:.88rem}
 .mini-notice span{flex:1;min-width:12em}
+.opts{display:grid;border:1px solid var(--line);border-radius:calc(6px * var(--rk));overflow:hidden}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);background:var(--surface)}
+.opt:first-child{border-top:0}
+.opt .hint{margin:2px 0 0}
+.opt .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.sw{appearance:none;-webkit-appearance:none;width:40px;height:22px;border-radius:11px;background:var(--line);position:relative;cursor:pointer;margin:0;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s}
+.sw:checked{background:var(--accent)}
+.sw:checked::after{left:21px}
+.sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.sw,.sw::after{transition:none}}
+.set-grid{grid-template-columns:200px minmax(0,1fr);min-height:420px}
+@media (max-width:620px){.set-grid{grid-template-columns:1fr}.set-grid .side{border-right:0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap}}
+.set-main{padding:20px;gap:16px}
+.pg{display:grid;gap:16px}
+.side .pill{margin-left:6px}
+.side button.sub{padding-left:26px;font-size:.86rem;position:relative}
+.side button.sub::before{content:"";position:absolute;left:14px;top:0;bottom:0;border-left:1px solid var(--line)}
 </style>
 
 <div class="wrap">
@@ -119,7 +137,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
     <button class="tab" role="tab" id="tab-set" aria-selected="false" data-s="set">5 · Settings</button>
     <button class="tab" role="tab" id="tab-fs" aria-selected="false" data-s="fs">7 · Web page full screen</button>
     <button class="tab" role="tab" id="tab-inbox" aria-selected="false" data-s="inbox">8 · Network inbox</button>
-    <button class="tab" role="tab" id="tab-br" aria-selected="false" data-s="br">9 · Private browser <span class="pill warn" style="margin-left:4px">new</span></button>
+    <button class="tab" role="tab" id="tab-br" aria-selected="false" data-s="br">9 · Studio Browser <span class="pill warn" style="margin-left:4px">new</span></button>
   </nav>
 
   <!-- 1 FIRST RUN -->
@@ -298,8 +316,9 @@ project-folder/apples</div></div>
     </div></div>
   </section>
 
-  <!-- 5 SETTINGS (new, for approval) -->
+  <!-- 5 SETTINGS -->
   <section class="stage" data-screen="set" hidden>
+    <div style="display:grid;gap:12px"><div class="callout warn">Approved 2026-11-27: Settings is being reorganized into pages with a side list (General, Studio Browser › Web Links and Extensions, Performance, Editor extensions, Network &amp; tools, Your data). See screen 9 for the new layout. The sections below behave the same; only where they sit changes.</div>
     <div class="win">
       <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Settings</span></div>
       <div class="body">
@@ -361,7 +380,7 @@ project-folder/apples</div></div>
         </div>
         <div class="field">
           <label>More</label>
-          <div class="row"><button class="btn" id="go-sites">Approved websites…</button><button class="btn" id="go-tc">Toolchains…</button></div>
+          <div class="row"><button class="btn" id="go-sites">Approved websites…</button><button class="btn" id="go-inbox">Network inbox…</button><button class="btn" id="go-tc">Toolchains…</button></div>
         </div>
         <div class="field">
           <label>Your data</label>
@@ -384,6 +403,7 @@ project-folder/apples</div></div>
         </div>
         <p class="hint">Saved outside the sandbox, so nothing inside Linux Studio can change these settings. Clipboard changes apply immediately; the signature setting applies the next time Linux Studio starts.</p>
       </div>
+    </div>
     </div>
     <aside class="notes"><h3>What happens</h3><ul>
       <li><b>New: Extension signatures.</b> <b>Check signatures</b> (default): every extension downloaded from Open VSX is checked against Open VSX's signature before it installs. A missing, wrong or tampered signature stops the install and shows the editor's prompt, the same kind of box you saw, with <b>Install Anyway</b> to override.</li>
@@ -419,87 +439,158 @@ project-folder/apples</div></div>
       <li>Restart the editor to pick up new toolchains.</li></ul></aside>
   </section>
 
-  <!-- 9 PRIVATE BROWSER (approved 2026-11-27) -->
+  <!-- 9 STUDIO BROWSER (approved 2026-11-27, revision 6) -->
   <section class="stage" data-screen="br" hidden>
     <div class="s9-col">
 
       <!-- Settings section -->
       <div class="win">
         <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Settings</span></div>
-        <div class="body">
-          <h2>Settings</h2>
-          <p class="hint" style="margin:0">Other sections (Clipboard, Extension signatures, Display, CPU and memory) are unchanged from screen 5.</p>
+        <div class="tc-grid set-grid"><nav class="side" aria-label="Settings pages"><button aria-pressed="true" data-pg="general" id="s9-pg-btn-general">General</button><button aria-pressed="false" data-pg="browser" id="s9-pg-btn-browser">Studio Browser <span class="pill warn">new</span></button><button class="sub" aria-pressed="false" data-pg="browser-links" id="s9-pg-btn-browser-links">Web Links</button><button class="sub" aria-pressed="false" data-pg="browser-ext" id="s9-pg-btn-browser-ext">Extensions</button><button aria-pressed="false" data-pg="perf" id="s9-pg-btn-perf">Performance</button><button aria-pressed="false" data-pg="ext" id="s9-pg-btn-ext">Editor extensions</button><button aria-pressed="false" data-pg="net" id="s9-pg-btn-net">Network &amp; tools</button><button aria-pressed="false" data-pg="data" id="s9-pg-btn-data">Your data</button></nav><div class="tc-main set-main"><div class="pg" data-page="general"><h2>General</h2><div class="field">
+          <label>Clipboard</label>
+          <div class="row" role="radiogroup" aria-label="Clipboard">
+            <button class="btn" id="s9-cb-paste" aria-pressed="true">Paste only</button>
+            <button class="btn" id="s9-cb-both" aria-pressed="false">Both directions</button>
+          </div>
+          <div class="callout" id="s9-cb-note"></div>
+        </div><div class="field">
+          <label>Display</label>
+          <dl class="kv">
+            <dt>Mode</dt><dd id="s9-disp-mode">Private X11 window <span class="pill ok">Isolated</span></dd>
+            <dt>What this means</dt><dd id="s9-disp-note">Your desktop uses X11, so Linux Studio runs in its own window with a private display. Code inside can only see and type into that window.</dd>
+          </dl>
+          <div class="row"><button class="btn sm" id="s9-disp-toggle">Preview: desktop uses Wayland</button></div>
+        </div><p class="hint">Clipboard changes apply immediately.</p></div><div class="pg" data-page="browser" hidden><h2>Studio Browser</h2>
+          <p class="hint" style="margin:0">Linux Studio's own private browser. Its link and extension settings are on the two pages under it in the list.</p>
           <div class="field">
-            <label>Private browser</label>
-            <span style="font-size:.9rem">Open web links in</span>
-            <div class="row" role="radiogroup" aria-label="Open web links in">
-              <button class="btn primary" id="ln-browser" aria-pressed="true">Private browser</button>
-              <button class="btn" id="ln-tab" aria-pressed="false">Linux Studio tab</button>
+            <label>Privacy</label>
+            <div class="opts">
+              <div class="opt">
+                <div><b>Remember logins, cookies and passwords</b><p class="hint" id="s9-mem-note"></p></div>
+                <input type="checkbox" role="switch" class="sw" id="s9-mem-sw" aria-label="Remember logins, cookies and passwords">
+              </div>
+              <div class="opt">
+                <div><b>Safe Browsing</b><p class="hint" id="s9-sb-note"></p></div>
+                <input type="checkbox" role="switch" class="sw" id="s9-sb-sw" aria-label="Safe Browsing">
+              </div>
             </div>
-            <div class="callout" id="ln-note"></div>
-            <span style="font-size:.9rem;margin-top:6px">Logins and history</span>
-            <div class="row" role="radiogroup" aria-label="Logins and history">
-              <button class="btn primary" id="mem-forget" aria-pressed="true">Forget when closed</button>
-              <button class="btn" id="mem-keep" aria-pressed="false">Remember</button>
-            </div>
-            <div class="callout" id="mem-note"></div>
-            <dl class="kv" style="margin-top:4px">
-              <dt>Browser</dt><dd>Firefox ESR 153.8 from Debian <span class="pill ok">Signature-checked</span></dd>
-              <dt>Always on</dt><dd>uBlock Origin, tracking protection, no telemetry or studies</dd>
+          </div>
+          <div class="field">
+            <label>About</label>
+            <dl class="kv">
+              <dt>Engine</dt><dd>Open-source browser engine 153.8 from Debian <span class="pill ok">Signature-checked</span></dd>
+              <dt>Always on</dt><dd>Tracking protection; no telemetry, studies or online accounts</dd>
               <dt>Network</dt><dd>Same as the editor: approved websites only, through the Network inbox</dd>
+              <dt>Files</dt><dd>Sees only <span class="mono">project-folder/Downloads</span></dd>
             </dl>
-            <div class="row"><button class="btn" id="br-open">Open private browser</button></div>
+            <div class="row"><button class="btn" id="s9-br-open">Open Studio Browser</button></div>
           </div>
+          <p class="hint">Changes apply the next time the Studio Browser opens.</p></div><div class="pg" data-page="browser-links" hidden><h2>Web Links</h2>
+          <p class="hint" style="margin:0">Studio Browser › Web Links</p>
           <div class="field">
-            <label>Your data</label>
-            <div class="row"><button class="btn danger" id="s9-rm-open">Remove my Linux Studio data…</button></div>
+            <label>Where links from the editor, its terminal and extension sign-ins open</label>
+            <div class="row" role="radiogroup" aria-label="Open web links in">
+              <button class="btn primary" id="s9-ln-browser" aria-pressed="true">Studio Browser</button>
+              <button class="btn" id="s9-ln-tab" aria-pressed="false">Linux Studio tab</button>
+            </div>
+            <div class="callout" id="s9-ln-note"></div>
           </div>
-          <p class="hint">Both choices apply the next time Linux Studio starts.</p>
-        </div>
+          <p class="hint">Applies to the next link you open.</p></div><div class="pg" data-page="browser-ext" hidden><h2>Extensions</h2>
+          <p class="hint" style="margin:0">Studio Browser › Extensions</p>
+          <div class="field">
+            <label>Browser extensions</label>
+            <div class="opts" id="s9-ext-list"></div>
+            <p class="hint" style="margin:0">Websites can't install extensions, and only these four can be turned on.</p>
+          </div>
+          <p class="hint">Changes apply the next time the Studio Browser opens.</p></div><div class="pg" data-page="perf" hidden><h2>Performance</h2><div class="field">
+          <label>CPU and memory</label>
+          <p class="hint" style="margin:0">This computer: <b>8 CPU cores</b>, <b>16 GB</b> memory (example).</p>
+          <div class="row">
+            <span style="min-width:9em">CPU cores</span>
+            <select class="btn" id="s9-res-cpu" aria-label="CPU cores Linux Studio may use">
+              <option value="8">All 8 cores</option>
+              <option value="7" selected>7 cores (default: all but one)</option>
+              <option>6 cores</option><option>4 cores</option><option>2 cores</option><option>1 core</option>
+            </select>
+          </div>
+          <div class="row">
+            <span style="min-width:9em">Memory limit</span>
+            <select class="btn" id="s9-res-mem" aria-label="Memory limit for Linux Studio">
+              <option value="0">No limit</option>
+              <option value="12" selected>12 GB (default: 75%)</option>
+              <option>8 GB</option><option>4 GB</option><option>2 GB</option>
+            </select>
+          </div>
+          <div class="callout" id="s9-res-note">Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in its terminal. Programs inside see only the cores you allow, so builds don't try to use more. Applies the next time Linux Studio starts.</div>
+        </div><p class="hint">Applies the next time Linux Studio starts.</p></div><div class="pg" data-page="ext" hidden><h2>Editor extensions</h2><div class="field">
+          <label>Extension signatures</label>
+          <div class="row" role="radiogroup" aria-label="Extension signatures">
+            <button class="btn" id="s9-sig-on" aria-pressed="true">Check signatures</button>
+            <button class="btn" id="s9-sig-off" aria-pressed="false">Don't check</button>
+          </div>
+          <div class="callout" id="s9-sig-note"></div>
+          <div class="row" id="s9-size-row">
+            <span>Largest extension to check</span>
+            <select class="btn" id="s9-sig-size" aria-label="Largest extension to check">
+              <option value="256">256 MB</option>
+              <option value="512" selected>512 MB (default)</option>
+              <option value="1024">1 GB</option>
+              <option value="1536">1.5 GB</option>
+            </select>
+          </div>
+          <p class="hint" id="s9-size-note">Extensions bigger than this are refused (you can still choose Install Anyway). A bigger limit lets larger extensions be checked but uses more memory while checking. Claude Code is about 190 MB.</p>
+        </div><p class="hint">Applies the next time Linux Studio starts. The Studio Browser's extensions are under Studio Browser › Extensions.</p></div><div class="pg" data-page="net" hidden><h2>Network &amp; tools</h2><div class="field">
+          <label>Open</label>
+          <div class="row"><button class="btn" id="s9-go-sites">Approved websites…</button><button class="btn" id="s9-go-inbox">Network inbox…</button><button class="btn" id="s9-go-tc">Toolchains…</button></div>
+        </div><p class="hint">Each opens its own window.</p></div><div class="pg" data-page="data" hidden><h2>Your data</h2><div class="field">
+          <label>Your data</label>
+          <div class="row"><button class="btn danger" id="s9-rm-open">Remove my Linux Studio data…</button></div>
+          
+        </div></div><p class="hint set-foot">Saved outside the sandbox, so nothing inside Linux Studio can change these settings.</p></div></div>
       </div>
 
       <!-- Link flow demo -->
       <div class="win">
         <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Editor (example)</span></div>
         <div class="code"><span class="c"># README.md</span>
-Docs: <button class="lk" id="demo-link">https://docs.example-lib.dev/start</button>
+Docs: <button class="lk" id="s9-demo-link">https://docs.example-lib.dev/start</button>
 
 <span class="c"># Terminal</span>
 $ xdg-open https://docs.example-lib.dev/start</div>
         <div class="body" style="gap:10px">
-          <ol class="steps" id="steps">
+          <ol class="steps" id="s9-steps">
             <li data-on="false">You click a link in the editor, or run <span class="mono">xdg-open</span> in its terminal.</li>
             <li data-on="false">A site you haven't approved goes to the Network inbox first.</li>
             <li data-on="false">After you allow it, the page opens where Settings says.</li>
           </ol>
-          <div class="mini-notice" id="flow-notice" hidden>
+          <div class="mini-notice" id="s9-flow-notice" hidden>
             <span><b>1 website is waiting:</b> <span class="mono">docs.example-lib.dev</span></span>
-            <button class="btn sm danger" id="flow-deny">Deny</button>
-            <button class="btn sm" id="flow-once">Allow once</button>
-            <button class="btn sm primary" id="flow-always">Always allow</button>
+            <button class="btn sm danger" id="s9-flow-deny">Deny</button>
+            <button class="btn sm" id="s9-flow-once">Allow once</button>
+            <button class="btn sm primary" id="s9-flow-always">Always allow</button>
           </div>
-          <div class="row"><button class="btn sm" id="flow-reset">Reset example</button></div>
+          <div class="row"><button class="btn sm" id="s9-flow-reset">Reset example</button></div>
         </div>
       </div>
 
       <!-- Browser window -->
-      <div class="win" id="br-win">
-        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Private browser</span></div>
+      <div class="win" id="s9-br-win">
+        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Studio Browser</span></div>
         <div class="urlbar">
           <span class="ic" aria-hidden="true">←</span>
-          <span class="addr" id="br-addr">about:blank</span>
-          <span class="ic ub" title="uBlock Origin: ads and trackers blocked on this page">uBlock · <span id="br-blocked">0</span></span>
+          <span class="addr" id="s9-br-addr">about:blank</span>
+          <span id="s9-br-chips" class="row" style="gap:6px;flex-wrap:nowrap"></span>
         </div>
-        <div class="page" id="br-page">
-          <p class="hint" style="margin:0" id="br-empty">Click the link in the editor above to see a page open here.</p>
-          <div id="br-content" hidden style="display:grid;gap:10px">
-            <h2 id="br-h">Getting started</h2>
+        <div class="page" id="s9-br-page">
+          <p class="hint" style="margin:0" id="s9-br-empty">Click the link in the editor above to see a page open here.</p>
+          <div id="s9-br-content" hidden style="display:grid;gap:10px">
+            <h2 id="s9-br-h">Getting started</h2>
             <div class="ph" style="width:92%"></div><div class="ph" style="width:84%"></div><div class="ph" style="width:70%"></div>
             <div class="ph" style="width:88%"></div><div class="ph" style="width:46%"></div>
           </div>
         </div>
         <div class="statusline">
-          <span class="pill ok" id="br-mem-pill">Forgets logins and history when closed</span>
+          <span class="pill ok" id="s9-br-mem-pill"></span> <span class="pill" id="s9-br-sb-pill"></span>
           <span>Fake identity · approved sites only</span>
         </div>
       </div>
@@ -513,16 +604,16 @@ $ xdg-open https://docs.example-lib.dev/start</div>
     </div>
 
     <aside class="notes"><h3>What happens</h3><ul>
-      <li><b>Firefox ESR</b> (PM choice), installed from Debian's signature-checked archive inside Linux Studio's private runtime. Locked policies turn off telemetry, studies, Pocket, Firefox accounts, feedback, update checks and the default-browser question.</li>
-      <li><b>Same sandbox as the editor.</b> The browser sees only Linux Studio's network proxy, so every new site goes through the <b>Network inbox</b>, and it uses the same fake identity. Sign-ins to <span class="mono">localhost</span> (for example an extension's login) work.</li>
-      <li><b>Its own window.</b> On X11 it gets its own private display, titled <b>Linux Studio · Private browser</b>, separate from the editor's.</li>
-      <li><b>Open web links in</b> (PM choice): <b>Private browser</b> by default; <b>Linux Studio tab</b> keeps today's in-editor tab. Covers editor links, <span class="mono">xdg-open</span> in the terminal and extension sign-in pages.</li>
-      <li><b>Logins and history</b> (PM choice: a Settings choice). <b>Forget when closed</b> by default: nothing is kept between sessions. <b>Remember</b> keeps them in Linux Studio's private data, never in your own Firefox profile.</li>
-      <li><b>uBlock Origin</b> (PM choice) from Debian, always on, with its default filter lists. Its list updates also go through the Network inbox.</li>
-      <li><span class="mono">linux-studio://</span> sign-in callbacks from the browser are sent back to the editor through the same checked link router as today.</li>
-      <li><b>Remove my data</b> gains a tick box: <b>Private browser logins and history</b>.</li>
-      <li>Also available as <span class="mono">linux-studio --private-browser</span> (name to confirm).</li></ul></aside>
-    <div class="rm-backdrop" id="s9-rm-card" hidden>
+      <li><b>Name and branding (PM):</b> called <b>Studio Browser</b> everywhere Linux Studio shows it: Settings, its window title, Remove my data and the command. Linux Studio never names the engine.</li>
+      <li><b>Engine (for the PM):</b> Firefox ESR from Debian's signature-checked archive (PM choice). Locked policies turn off telemetry, studies, Pocket, accounts, feedback, update checks and the default-browser question. ⚠ Debian's build still says "Firefox" in a few places inside the browser itself, for example Help › About and some about: pages. Removing those needs our own rebranded engine build (a large project, like LibreWolf), so this is a PM decision.</li>
+      <li><b>Side list:</b> <b>Studio Browser</b> is a group. Its own page holds Privacy (Remember logins, cookies and passwords: off by default; Safe Browsing: off by default) and About. Under it: <b>Web Links</b> (Studio Browser by default, or Linux Studio tab) and <b>Extensions</b> (uBlock Origin, NoScript, ClearURLs, Bitwarden: all on by default).</li>
+      <li><b>Own sandbox, same rules as the editor:</b> only Linux Studio's proxy, so every new site goes through the <b>Network inbox</b>, with the same fake identity. The only folder it sees is <span class="mono">project-folder/Downloads</span>.</li>
+      <li><b>Own window</b> on X11: <b>Linux Studio · Studio Browser</b>, separate from the editor's.</li>
+      <li><b>Extensions:</b> uBlock Origin from Debian. NoScript, ClearURLs and Bitwarden from Mozilla's add-on site, Mozilla-signed, with version and file hash pinned at build time. Turning one off removes it. Bitwarden uses the Bitwarden License, which is not open source (PM accepted).</li>
+      <li><b>Safe Browsing</b> on: the browser checks hashed parts of addresses with Google, through the Network inbox.</li>
+      <li><b>Remove my data</b> gains: <b>Studio Browser logins and history</b>.</li>
+      <li>Command: <span class="mono">linux-studio --studio-browser</span> (renamed from --private-browser to match).</li></ul></aside>
+  <div class="rm-backdrop" id="s9-rm-card" hidden>
   <div class="win" role="dialog" aria-modal="true" aria-labelledby="s9-rm-title" style="max-width:480px;width:100%">
     <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Remove your data</span></div>
     <div class="body" style="gap:12px">
@@ -531,7 +622,7 @@ $ xdg-open https://docs.example-lib.dev/start</div>
       <span>Close Linux Studio first. Choose what to delete from this computer.</span>
       <label style="font-weight:400"><input type="checkbox" id="s9-rm-ext" checked> Extensions, editor settings and logins (for example Claude's)</label>
       <label style="font-weight:400"><input type="checkbox" id="s9-rm-tc" checked> Toolchains you installed</label>
-      <label style="font-weight:400"><input type="checkbox" id="s9-rm-br" checked> Private browser logins and history <span class="pill warn">new</span></label>
+      <label style="font-weight:400"><input type="checkbox" id="s9-rm-br" checked> Studio Browser logins and history <span class="pill warn">new</span></label>
       <label style="font-weight:400"><input type="checkbox" id="s9-rm-set"> My Settings choices and approved websites</label>
       <span>Your project folder is <b>never</b> touched. It stays at <span class="mono">~/LinuxStudio/project-folder</span>.</span>
       <div class="actions"><button class="btn" id="s9-rm-cancel">Cancel</button><button class="btn danger" id="s9-rm-go">Remove selected</button></div>
@@ -654,42 +745,86 @@ let wl=false;$('#disp-toggle').onclick=()=>{wl=!wl;
   $('#disp-mode').innerHTML=wl?'Wayland <span class="pill ok">Isolated</span>':'Private X11 window <span class="pill ok">Isolated</span>';
   $('#disp-note').textContent=wl?'Your desktop uses Wayland. Linux Studio opens as a normal window, and Wayland already keeps apps from seeing each other.':'Your desktop uses X11, so Linux Studio runs in its own window with a private display. Code inside can only see and type into that window.';
   $('#disp-toggle').textContent=wl?'Preview: desktop uses X11':'Preview: desktop uses Wayland'};
-$('#go-sites').onclick=()=>document.getElementById('tab-allow').click();$('#go-tc').onclick=()=>document.getElementById('tab-tc').click();
-// 9 private browser
+$('#go-sites').onclick=()=>document.getElementById('tab-allow').click();$('#go-inbox').onclick=()=>document.getElementById('tab-inbox').click();$('#go-tc').onclick=()=>document.getElementById('tab-tc').click();
+// 9 studio browser (approved revision 6)
 (()=>{
 function pick(a,b,on){[a,b].forEach(x=>{const p=x===on;x.setAttribute('aria-pressed',p);x.classList.toggle('primary',p)})}
-let linkTo='browser', mem='forget', approved=false;
-const LN={browser:'Web links open in the private browser window, with uBlock Origin and tracking protection. Default.',
-          tab:'Web links open in a tab inside the editor, as they do today. Firefox is still available from the button below.'};
-const MEM={forget:'Logins, cookies and history are wiped every time the private browser closes. You sign in again each time. Default.',
-           keep:'Logins, cookies and history are kept in Linux Studio\'s private data folder, so you stay signed in. Remove my data can clear them.'};
+let linkTo='browser', approved=false;
+const EXT=[
+  {id:'ub',name:'uBlock Origin',chip:'uBlock',ver:'1.67',src:'Debian',lic:'GPL-3.0',open:true,desc:'Blocks ads and trackers.'},
+  {id:'ns',name:'NoScript',chip:'NoScript',ver:'13.6.39',src:'Mozilla add-ons',lic:'GPL-2.0',open:true,desc:'Blocks scripts until you allow a site. Many sites need one click to work.'},
+  {id:'cu',name:'ClearURLs',chip:'ClearURLs',ver:'1.28.0',src:'Mozilla add-ons',lic:'LGPL-3.0',open:true,desc:'Removes tracking parts from links. Its rule updates ask through the Network inbox.'},
+  {id:'bw',name:'Bitwarden',chip:'Bitwarden',ver:'2026.11.0',src:'Mozilla add-ons',lic:'Bitwarden License',open:false,desc:'Password manager. Needs a Bitwarden account; its servers ask through the Network inbox.'}];
+const on={ub:true,ns:true,cu:true,bw:true};
+const LN={browser:'Web links open in the Studio Browser window. Default.',
+          tab:'Web links open in a tab inside the editor, as they do today. The Studio Browser is still available from its page.'};
+function drawExt(){const l=$('#s9-ext-list');l.innerHTML='';
+  EXT.forEach(e=>{const d=document.createElement('div');d.className='opt';
+    d.innerHTML=`<div><b></b><p class="hint"></p><div class="meta"><span class="pill">${e.ver}</span><span class="pill ok">${e.src}</span><span class="pill ${e.open?'':'warn'}">${e.lic}${e.open?'':' · not open source'}</span></div></div><input type="checkbox" role="switch" class="sw" id="s9-ext-${e.id}">`;
+    d.querySelector('b').textContent=e.name;d.querySelector('.hint').textContent=e.desc;
+    const c=d.querySelector('input');c.checked=on[e.id];c.setAttribute('aria-label',e.name);
+    c.onchange=()=>{on[e.id]=c.checked;draw();toast(e.name+(c.checked?' turned on':' turned off')+' for the next time the Studio Browser opens')};
+    l.append(d)})}
 function draw(){
-  pick($('#ln-browser'),$('#ln-tab'),linkTo==='browser'?$('#ln-browser'):$('#ln-tab'));
-  pick($('#mem-forget'),$('#mem-keep'),mem==='forget'?$('#mem-forget'):$('#mem-keep'));
-  $('#ln-note').textContent=LN[linkTo]; $('#mem-note').textContent=MEM[mem];
-  $('#mem-note').classList.toggle('warn',mem==='keep');
-  $('#br-mem-pill').textContent=mem==='forget'?'Forgets logins and history when closed':'Remembers logins and history';
-  $('#br-mem-pill').className='pill '+(mem==='forget'?'ok':'warn');
-  $('#br-win').hidden=linkTo!=='browser'; $('#s9-tab-win').hidden=linkTo!=='tab';
+  pick($('#s9-ln-browser'),$('#s9-ln-tab'),linkTo==='browser'?$('#s9-ln-browser'):$('#s9-ln-tab'));
+  $('#s9-ln-note').textContent=LN[linkTo];
+  const mem=$('#s9-mem-sw').checked, sb=$('#s9-sb-sw').checked;
+  $('#s9-mem-note').textContent=mem?'On: logins, cookies, saved passwords and history are kept in Linux Studio\'s private data, so you stay signed in. Remove my data can clear them.'
+    :'Off (default): everything is wiped when the Studio Browser closes. You sign in again each time, Bitwarden included.';
+  $('#s9-sb-note').textContent=sb?'On: warns about known phishing and malware sites. The browser checks hashed parts of addresses with Google (safebrowsing.googleapis.com), through the Network inbox.'
+    :'Off (default): nothing is sent to Google. uBlock Origin\'s lists still block many known bad sites.';
+  $('#s9-br-mem-pill').textContent=mem?'Remembers logins and history':'Forgets logins and history when closed';
+  $('#s9-br-mem-pill').className='pill '+(mem?'warn':'ok');
+  $('#s9-br-sb-pill').textContent='Safe Browsing '+(sb?'on':'off');
+  const ch=$('#s9-br-chips');ch.innerHTML='';EXT.filter(e=>on[e.id]).forEach(e=>{const c=document.createElement('span');c.className='ic ub';c.textContent=e.chip;ch.append(c)});
+  if(!ch.children.length){const c=document.createElement('span');c.className='ic';c.textContent='No extensions';ch.append(c)}
+  $('#s9-br-win').hidden=linkTo!=='browser'; $('#s9-tab-win').hidden=linkTo!=='tab';
 }
-$('#ln-browser').onclick=()=>{linkTo='browser';draw()}; $('#ln-tab').onclick=()=>{linkTo='tab';draw()};
-$('#mem-forget').onclick=()=>{mem='forget';draw()}; $('#mem-keep').onclick=()=>{mem='keep';draw()};
-function step(n){[...document.querySelectorAll('#steps li')].forEach((li,i)=>li.dataset.on=String(i<n))}
+$('#s9-ln-browser').onclick=()=>{linkTo='browser';draw()}; $('#s9-ln-tab').onclick=()=>{linkTo='tab';draw()};
+$('#s9-mem-sw').onchange=draw; $('#s9-sb-sw').onchange=draw;
+function step(n){[...document.querySelectorAll('#s9-steps li')].forEach((li,i)=>li.dataset.on=String(i<n))}
 const URL_='https://docs.example-lib.dev/start';
 function openPage(){step(3);
-  if(linkTo==='browser'){$('#br-addr').textContent=URL_;$('#br-empty').hidden=true;$('#br-content').hidden=false;$('#br-blocked').textContent='7';toast('Opened in the private browser');}
+  if(linkTo==='browser'){$('#s9-br-addr').textContent=URL_;$('#s9-br-empty').hidden=true;$('#s9-br-content').hidden=false;toast('Opened in the Studio Browser');}
   else{$('#s9-tab-addr').textContent=URL_;toast('Opened in a Linux Studio tab');}}
-$('#demo-link').onclick=()=>{step(1);if(approved){openPage();return}step(2);$('#flow-notice').hidden=false;toast('docs.example-lib.dev is waiting in the Network inbox')};
-$('#flow-deny').onclick=()=>{$('#flow-notice').hidden=true;step(0);toast('Denied: the page does not open')};
-$('#flow-once').onclick=()=>{$('#flow-notice').hidden=true;openPage()};
-$('#flow-always').onclick=()=>{$('#flow-notice').hidden=true;approved=true;openPage()};
-$('#flow-reset').onclick=()=>{approved=false;step(0);$('#flow-notice').hidden=true;$('#br-addr').textContent='about:blank';$('#s9-tab-addr').textContent='about:blank';$('#br-empty').hidden=false;$('#br-content').hidden=true;$('#br-blocked').textContent='0';toast('Example reset')};
-$('#br-open').onclick=()=>{$('#br-win').hidden=false;
-  $('#br-win').scrollIntoView({block:'nearest',behavior:'smooth'});toast('The private browser opens in its own window')};
+$('#s9-demo-link').onclick=()=>{step(1);if(approved){openPage();return}step(2);$('#s9-flow-notice').hidden=false;toast('docs.example-lib.dev is waiting in the Network inbox')};
+$('#s9-flow-deny').onclick=()=>{$('#s9-flow-notice').hidden=true;step(0);toast('Denied: the page does not open')};
+$('#s9-flow-once').onclick=()=>{$('#s9-flow-notice').hidden=true;openPage()};
+$('#s9-flow-always').onclick=()=>{$('#s9-flow-notice').hidden=true;approved=true;openPage()};
+$('#s9-flow-reset').onclick=()=>{approved=false;step(0);$('#s9-flow-notice').hidden=true;$('#s9-br-addr').textContent='about:blank';$('#s9-tab-addr').textContent='about:blank';$('#s9-br-empty').hidden=false;$('#s9-br-content').hidden=true;toast('Example reset')};
+$('#s9-br-open').onclick=()=>{$('#s9-br-win').hidden=false;$('#s9-br-win').scrollIntoView({block:'nearest',behavior:'smooth'});toast('The Studio Browser opens in its own window')};
 $('#s9-rm-open').onclick=()=>{$('#s9-rm-card').hidden=false;$('#s9-rm-cancel').focus()};
 $('#s9-rm-cancel').onclick=()=>$('#s9-rm-card').hidden=true;
 $('#s9-rm-go').onclick=()=>{$('#s9-rm-card').hidden=true;toast('Example only: nothing was removed')};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('#s9-rm-card').hidden=true});
-draw();
+drawExt();draw();
+document.querySelectorAll('[data-screen="br"] .set-grid .side button').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-screen="br"] .set-grid .side button').forEach(x=>x.setAttribute('aria-pressed',x===b));document.querySelectorAll('[data-screen="br"] .pg').forEach(g=>g.hidden=g.dataset.page!==b.dataset.pg)});
+// Settings sections as built today (screen 5)
+const sigNotes={on:'Check signatures: before an extension installs, Linux Studio checks it against the signature Open VSX published for it. If the signature is missing, wrong or doesn\'t match the download, the install stops and the editor asks you; you can still choose "Install Anyway".',
+ off:'Don\'t check: extensions install without checking that the download is exactly what Open VSX published. ⚠ A tampered download would not be noticed. Downloads still only come from open-vsx.org over HTTPS.'};
+function setSig(m){$('#s9-sig-on').setAttribute('aria-pressed',m==='on');$('#s9-sig-off').setAttribute('aria-pressed',m==='off');
+  $('#s9-sig-on').classList.toggle('primary',m==='on');$('#s9-sig-off').classList.toggle('primary',m==='off');
+  $('#s9-sig-note').textContent=sigNotes[m];$('#s9-sig-note').classList.toggle('warn',m==='off');$('#s9-size-row').hidden=$('#s9-size-note').hidden=(m==='off');toast(m==='on'?'Extension signatures: checked (next start)':'Extension signatures: not checked (next start)')}
+const resBase='Covers everything inside Linux Studio: the editor, extensions (such as Claude Code) and anything you run in its terminal. Programs inside see only the cores you allow, so builds don\'t try to use more. Applies the next time Linux Studio starts.';
+function resNote(){/* default has a limit */const mem=$('#s9-res-mem').value!=='0';$('#s9-res-note').textContent=resBase+(mem?' ⚠ With a memory limit, if Linux Studio needs more than '+$('#s9-res-mem').selectedOptions[0].textContent+', the biggest program inside it (often a build or an extension) is stopped. Save your work often.':'');$('#s9-res-note').classList.toggle('warn',mem)}
+$('#s9-res-cpu').onchange=e=>toast('CPU cores: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)');
+resNote();
+$('#s9-res-mem').onchange=e=>{resNote();toast('Memory limit: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)')};
+$('#s9-sig-size').onchange=e=>toast('Largest extension to check: '+e.target.selectedOptions[0].textContent.replace(' (default)','')+' (next start)');
+$('#s9-sig-on').onclick=()=>setSig('on');$('#s9-sig-off').onclick=()=>setSig('off');
+$('#s9-sig-note').textContent=sigNotes.on;$('#s9-sig-on').classList.add('primary');
+const notes={paste:'Paste only: text you copy elsewhere reaches Linux Studio only when you paste inside its window with the keyboard (Ctrl+V or Shift+Insert), once per paste. Code inside can\'t read your clipboard in the background, highlighted text is never shared, and anything copied inside stays inside.',
+ both:'Both directions: copy and paste work like a normal app. ⚠ Code inside Linux Studio, such as an extension, could read anything you copy elsewhere, including passwords.'};
+function setCb(m){$('#s9-cb-paste').setAttribute('aria-pressed',m==='paste');$('#s9-cb-both').setAttribute('aria-pressed',m==='both');
+  $('#s9-cb-paste').classList.toggle('primary',m==='paste');$('#s9-cb-both').classList.toggle('primary',m==='both');
+  $('#s9-cb-note').textContent=notes[m];$('#s9-cb-note').classList.toggle('warn',m==='both');toast(m==='paste'?'Clipboard: Paste only':'Clipboard: Both directions')}
+$('#s9-cb-paste').onclick=()=>setCb('paste');$('#s9-cb-both').onclick=()=>setCb('both');
+$('#s9-cb-note').textContent=notes.paste;$('#s9-cb-paste').classList.add('primary');
+let wl=false;$('#s9-disp-toggle').onclick=()=>{wl=!wl;
+  $('#s9-disp-mode').innerHTML=wl?'Wayland <span class="pill ok">Isolated</span>':'Private X11 window <span class="pill ok">Isolated</span>';
+  $('#s9-disp-note').textContent=wl?'Your desktop uses Wayland. Linux Studio opens as a normal window, and Wayland already keeps apps from seeing each other.':'Your desktop uses X11, so Linux Studio runs in its own window with a private display. Code inside can only see and type into that window.';
+  $('#s9-disp-toggle').textContent=wl?'Preview: desktop uses X11':'Preview: desktop uses Wayland'};
+
+$('#s9-go-sites').onclick=()=>toast('Opens Approved websites (screen 3)');$('#s9-go-inbox').onclick=()=>toast('Opens the Network inbox (screen 8)');$('#s9-go-tc').onclick=()=>toast('Opens Toolchains (screen 4)');
 })();
 </script>

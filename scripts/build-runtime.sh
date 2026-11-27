@@ -12,6 +12,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SUITE=trixie
 MIRROR=http://deb.debian.org/debian
+# Debian's security archive (signed with the same Debian keys). Firefox ESR's current version comes from here,
+# and it brings security fixes for every other package too.
+SECURITY="deb http://security.debian.org/debian-security $SUITE-security main"
 DEST="$ROOT/build-cache/runtime/$(date -u +%Y-%m-%d)"
 
 PACKAGES=(
@@ -25,6 +28,8 @@ PACKAGES=(
   fonts-dejavu-core
   fonts-noto-core
   fonts-noto-cjk
+  # private browser (2026-11-27, PM): Firefox ESR and the uBlock Origin ad and tracker blocker, both from Debian
+  firefox-esr webext-ublock-origin-firefox
   # libraries the editor (Electron) needs; confirmed with ldd after building
   libgtk-3-0t64 libnss3 libasound2t64 libgbm1 libxkbfile1 libsecret-1-0 libxss1 libdrm2
   libxshmfence1 libatk-bridge2.0-0t64 libcups2t64 libx11-xcb1 libxcomposite1 libxdamage1
@@ -51,7 +56,7 @@ mmdebstrap --mode=unshare --variant=minbase --include="$INCLUDE" --keyring="$KEY
   --customize-hook='mkdir -p "$1/home/user" "$1/project-folder" "$1/app" "$1/run/user" "$1/toolchains"' \
   --customize-hook='chroot "$1" dpkg-query -W -f="\${Package} \${Version}\n" > "$1/etc/linux-studio/manifest.txt"' \
   --customize-hook='rm -rf "$1"/var/cache/apt/archives/*.deb "$1"/var/lib/apt/lists/*' \
-  "$SUITE" "$TMP/rootfs.tar" "$MIRROR"
+  "$SUITE" "$TMP/rootfs.tar" "deb $MIRROR $SUITE main" "$SECURITY"
 
 mkdir -p "$DEST/rootfs"
 # Device files can't be created without root and aren't needed (the sandbox makes its own /dev).
