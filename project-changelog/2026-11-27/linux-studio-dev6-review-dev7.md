@@ -77,3 +77,8 @@
   docs, mockup note. Backups in `version-control/{network,launcher}/2026-11-27_0437/`.
 - **Checked on a test display:** an empty request is refused (404), the inbox opened from the editor has no keyboard focus, and the new button is shown.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 04:45 UTC: dev8 on hold; Firefox research; paused
+- **PM:** don't build dev8 until the Firefox private browser is ready. The started dev8 job was stopped during its tests; nothing was built.
+- Firefox research is recorded in the evening handoff. Four decisions are deferred to the next session at the PM's request.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

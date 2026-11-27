@@ -112,3 +112,32 @@ Branch: **`dev`**, last commit **`0d9ba06`**, pushed. The working tree is clean.
   - `rm` with `$()` paths is blocked: delete literal paths
   - `pkill -f` can match its own command
 - **Disk:** about 7 GB free. Never delete builds or backups without explicit PM permission.
+
+---
+
+## Update 2026-11-27 (paused at the PM's request)
+- **dev7** was built and checked but **skipped by the PM** (link closed). dev6-2 was PM-tested: Cline's sign-in, the approval pop-ups, `xdg-open` and video
+  full screen all work.
+- **Done and committed since** (`51e14b4`, `f2378b7`, `39fe407`):
+  - the dev6 review fixes (D6-1…8)
+  - **videos stay full screen in their tab** (PM)
+  - the **network inbox** (mockup screen 8) with its security review fixes N1–N10
+  - disk cleanup with PM permission (8 GB free)
+- **dev8 is ON HOLD (PM):** "I want the Firefox browser to come along with dev8, so don't build dev8 until we get the browser situated."
+  A dev8 build was started and stopped during its tests; nothing was built.
+- **Firefox private browser research (done):**
+  - **Firefox ESR 153.8 from Debian's security archive**: +78 MB download, 300 MB installed. Hardened with Firefox's policy file: DisableTelemetry,
+    DisableFirefoxStudies, DisablePocket, DisableFeedbackCommands, DisableFirefoxAccounts, DisableAppUpdate, DontCheckDefaultBrowser,
+    OverrideFirstRunPage, PasswordManagerEnabled/OfferToSaveLogins, EnableTrackingProtection, locked Preferences, and Handlers for `linux-studio://`.
+  - **uBlock Origin 1.67** is in Debian (`webext-ublock-origin-firefox`).
+  - **LibreWolf** comes only from its own repo (`repo.librewolf.net` via extrepo); its key verification isn't documented.
+  - **Proposed fit:** it runs inside the same sandbox (proxy and inbox, fake identity, localhost sign-ins work), in its own private display window on X11.
+- **Questions for the PM, asked and deferred ("ask me these another time"):**
+  1. Firefox ESR (Debian, recommended) or LibreWolf?
+  2. Where should web links open by default: a setting defaulting to the private browser, a setting defaulting to the Linux Studio tab, or always the
+     private browser?
+  3. Should the browser remember logins and history, forget them on close (recommended), or offer a Settings choice?
+  4. Include uBlock Origin (recommended)?
+
+  After the answers: a mockup (the Settings choice plus how the browser opens), PM approval, the build, a security review, then **dev8** (inbox +
+  videos + browser).
