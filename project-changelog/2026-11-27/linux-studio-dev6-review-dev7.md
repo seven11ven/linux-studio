@@ -40,3 +40,15 @@
   - the runtime backups `version-control/runtime/2026-11-25_2235` and `2026-11-26_1511`
 - **Kept:** all build logs and changelogs; dev5, dev6-2 and dev7; the runtime backups `2026-11-26_2120` and `2026-11-27_0331`. Free space went from about 3 GB to 8.4 GB.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 04:05 UTC: dev7 delivered; videos stay full screen in their tab
+- dev7 (sha256 `e2bd8979…ca0`) was offered through a one-time private link.
+- **PM request:** a video shouldn't leave full screen when you click elsewhere. **PM decisions:** it stays when switching tabs too; ship it with the
+  network inbox build.
+- **Change:**
+  - `src/editor/patches/browser-fullscreen.patch` is simplified: only the window put-back remains (with the user's own full-screen state followed).
+    The "end on leave" code is removed. Previous patch backed up in `version-control/editor-patches/2026-11-27_0404/`.
+  - The local build was updated to match.
+  - **Tested in the real editor:** the page stays full screen after clicking the side bar, with the menu bar still visible, and Esc on the page ends it.
+- Docs and security log updated.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

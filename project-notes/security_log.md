@@ -21,6 +21,10 @@ Earlier reviews (Phases 2 to 6) are recorded in the changelogs under `project-ch
 | D6-7 | Info | `bash -lc` (non-interactive login shells) lacked `xdg-open` and the chosen toolchains. | `/etc/linux-studio/path.sh` is loaded from `/etc/profile.d` as well as from bashrc (runtime rebuilt). Test added. |
 | D6-8 | Info | The patch used `999` instead of the editor's named constant. | It now uses `browserViewIsolatedWorldId`. |
 
+**Follow-up (2026-11-27, PM decision):** a page's full screen now stays on when you click elsewhere or switch tabs (a video keeps playing full
+screen in its tab). That removes the exit code, so D6-1 and D6-4 no longer apply. Their protection, "nothing outside the tab is ever covered", still
+holds through the window put-back (D6-3 kept). It goes to the next review together with the network inbox.
+
 **Confirmed safe:**
 - `LS_EDITOR_NO_SANDBOX` gives code inside nothing it couldn't already do.
 - `/toolchains` is read-only inside the sandbox.

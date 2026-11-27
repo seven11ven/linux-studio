@@ -435,10 +435,10 @@ refused schemes, session key, rate limit, and the browser patch's rule).
   - **Fix (PM decision, option B):** page full screen stays **inside its tab**. Editor patch `src/editor/patches/browser-fullscreen.patch` (browserView.ts,
     main process):
     - the window is put back at once (unless the user made it full screen), so menus, side bars and tabs never disappear
-    - focus leaving the page, or its tab being hidden, ends the page's full screen; the exit runs in the editor's isolated world
-      (`browserViewIsolatedWorldId`) **without** a user gesture, so the page can't block it or use it to go full screen again
-    - the user's own full-screen choice is followed from the window's own events; full screen that starts after the page lost focus ends at once
-    - (security review D6-1/3/4/8)
+    - the user's own full-screen choice is followed from the window's own events (security review D6-3)
+    - **since 2026-11-27 (PM decision):** the page's full screen is **no longer ended** when you click elsewhere or switch tabs. A video stays
+      full screen in its tab until you press Esc (with the page focused) or use its own button. This is safe because nothing outside the tab is ever
+      covered. The "end on leave" code, and review fixes D6-1/D6-4 that belonged to it, were removed.
   - **Tested:** the page reaches full screen with the menu bar still visible, and clicking the side bar ends it. Applied locally for dev6; the workflow
     applies the patch and checks it.
 - **Self-test:** the window-labelling helper is skipped and its X errors are ignored (they were harmless "BadWindow" messages).
