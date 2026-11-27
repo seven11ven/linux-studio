@@ -19,6 +19,14 @@ The files in `/guidelines` are the single source of truth. If anything in this f
 any other agent-instruction file conflicts with `/guidelines`, **`/guidelines` wins**.
 If a guideline is unclear, ask the Project Manager (the user) before acting.
 
+## Start here: where the project stands
+
+After reading `/guidelines`, read the **newest file in [`project-notes/handoff/`](project-notes/handoff/)**
+(the file names start with the date). It says what has been done, what remains, which decisions are
+waiting for the Project Manager, and the exact next steps. The longer-term plan is in
+[`project-notes/plan.md`](project-notes/plan.md); security reviews are in
+[`project-notes/security_log.md`](project-notes/security_log.md).
+
 ## Non-negotiable summary (not a substitute for reading the full guidelines)
 
 - **Plan first, get explicit permission.** Reading is fine. Never make any change

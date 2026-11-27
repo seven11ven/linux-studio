@@ -623,3 +623,9 @@ Rules checked: free with no card needed, no hidden tracking, and secure (see `gu
 ### Still to confirm
 Open VSX full terms of use; mmdebstrap licence; VSCodium Settings Sync behaviour; Electron version in VSCodium 1.143;
 the exact fixed version for CVE-2026-120779; Debian security status for each bundled package.
+
+## Handing builds to the Project Manager: `scripts/serve-once.py`
+A one-time private download link for a single file. It listens on 127.0.0.1 only, so in a Codespace you reach it through the editor's **private** port
+forward, which needs your GitHub sign-in. The file is served only at a random address, and the helper shuts itself down after **one complete download**
+or after 30 minutes, so no port is left open. Usage: `scripts/serve-once.py <file.deb> [port] [seconds]`. It prints `READY path=/…`; the link is
+`https://<codespace>-<port>.app.github.dev/<that path>`.

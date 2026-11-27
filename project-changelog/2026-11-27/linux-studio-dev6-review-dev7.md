@@ -86,3 +86,12 @@
 ## Update 11:58 UTC: complete handoff written
 - `project-notes/handoff/2026-11-27-handoff.md`: everything done, what's left, and where the project stands. It supersedes the 2026-11-26 handoffs.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 12:34 UTC: handoff gaps closed (PM approved)
+- **`AGENTS.md`:** a new "Start here" section. After `/guidelines`, every agent reads the newest file in `project-notes/handoff/`, plus `project-notes/plan.md`
+  and `project-notes/security_log.md`.
+- **`project-notes/plan.md`:** the project plan, copied into the repo from the agent's local plan file (checked first: no personal details or secrets).
+- **`scripts/serve-once.py`:** the one-time private download helper, now in the repo. Tested: a wrong path gets 404, one download, then it closes itself
+  and the port is closed.
+- Handoff and programming docs updated to match.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
