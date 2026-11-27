@@ -82,3 +82,7 @@
 - **PM:** don't build dev8 until the Firefox private browser is ready. The started dev8 job was stopped during its tests; nothing was built.
 - Firefox research is recorded in the evening handoff. Four decisions are deferred to the next session at the PM's request.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 11:58 UTC: complete handoff written
+- `project-notes/handoff/2026-11-27-handoff.md`: everything done, what's left, and where the project stands. It supersedes the 2026-11-26 handoffs.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
