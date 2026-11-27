@@ -1,0 +1,17 @@
+{
+  "name": "network-status",
+  "displayName": "Linux Studio network inbox status",
+  "description": "Shows how many websites are waiting for your approval in Linux Studio's network inbox, and opens the inbox when clicked. Built in. It can't answer requests itself.",
+  "publisher": "linux-studio",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN the Linux Studio repository",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": { "untrustedWorkspaces": { "supported": true }, "virtualWorkspaces": true },
+  "contributes": {
+    "commands": [
+      { "command": "linuxStudio.openNetworkInbox", "title": "Open Network Inbox", "category": "Linux Studio" }
+    ]
+  }
+}

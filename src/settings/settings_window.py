@@ -163,7 +163,8 @@ class SettingsWindow(Gtk.ApplicationWindow):
         # More
         box.append(self.section("More"))
         more = Gtk.Box(spacing=8)
-        for label, arg in (("Approved websites…", "--network"), ("Toolchains…", "--toolchains")):
+        for label, arg in (("Approved websites…", "--network"), ("Network inbox…", "--network-inbox"),
+                           ("Toolchains…", "--toolchains")):
             b = Gtk.Button(label=label)
             b.connect("clicked", lambda _b, a=arg: subprocess.Popen([self.launcher, a], start_new_session=True))
             more.append(b)

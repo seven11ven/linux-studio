@@ -256,6 +256,7 @@ project-folder/apples</div></div>
     <aside class="notes"><h3>What happens</h3><ul>
       <li><b>In the editor (top window):</b> a small <b>🌐 N waiting</b> item at the right end of the status bar, next to the notification bell. It appears only while something is waiting, and clicking it opens the Network inbox. It shows the count only: the editor runs inside the sandbox, so it can't answer requests. Linux Studio gives it the count through a read-only file, and "open the inbox" requests from it are rate-limited.</li>
       <li><b>New (PM choice A):</b> new websites no longer get one pop-up each. A <b>single small notice</b> shows how many are waiting and updates its count in place. It never takes the keyboard.</li>
+      <li><b>As built (after the security review):</b> the inbox also has <b>Block new sites until restart</b> (emergency stop); <b>Deny all</b> refuses until restart without saving; an inbox opened from the editor's status bar doesn't take the keyboard (click it first).</li>
       <li><b>Open inbox</b> lists every waiting site with <b>Deny</b>, <b>Allow once</b> and <b>Always allow</b>, plus <b>Deny all</b>. Buttons unlock after 1 second, like the pop-up.</li>
       <li><b>While a site waits, its connections are refused.</b> The extension or tool usually retries and works once you allow it.</li>
       <li><b>Requests expire after 10 minutes</b> (PM choice) if you don't answer, and count as denied until something asks again.</li>

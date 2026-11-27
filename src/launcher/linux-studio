@@ -17,6 +17,7 @@
 #   linux-studio --set-extension-size-limit MB   largest extension the signature check accepts (256, 512, 1024, 1536)
 #   linux-studio --set-cpu-cores N|all|default        CPU cores Linux Studio may use (default: all but one)
 #   linux-studio --set-memory-limit GB|none|default   memory cap (default: 75% of this computer's memory)
+#   linux-studio --network-inbox          open the Network inbox (websites waiting for your approval)
 #   linux-studio --remove-my-data         delete Linux Studio's data from this computer (asks first; never your project)
 #   linux-studio --toolchains             open the Toolchains explorer (online only while it's open)
 #   linux-studio --set-project-folder P   choose the project folder
@@ -254,6 +255,29 @@ while (( $# )); do
     --set-project-folder) (( $# >= 2 )) || die "--set-project-folder needs a path"; save_project_folder "$2"; exit 0 ;;
     --validate-project-folder) validate_project_folder "${2:-}"; exit 0 ;;   # used by the first-run window
     --network) exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" ;;
+    --network-inbox)   # Settings > More > Network inbox…: ask each running Linux Studio's proxy to show its inbox
+      # Only real sockets (no links) in folders you own, and the program answering must run as you (review N8).
+      found=0
+      for sock in "${XDG_RUNTIME_DIR:-/tmp}"/linux-studio.*/proxy.sock; do
+        [[ -S "$sock" && ! -L "$sock" && -O "$sock" && ! -L "${sock%/*}" && -O "${sock%/*}" ]] || continue
+        found=1
+        /usr/bin/python3 -I - "$sock" <<'PY_INBOX' || true
+import os, socket, struct, sys
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(5)
+s.connect(sys.argv[1])
+uid = struct.unpack("3i", s.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))[1]
+if uid != os.getuid():
+    sys.exit("linux-studio: that socket doesn't belong to you; ignored")
+s.sendall(b"LINUX-STUDIO-INBOX open\r\n\r\n")
+code = s.recv(64).split(b" ")[1:2]
+messages = {b"200": "Network inbox opened.", b"404": "No websites are waiting.",
+            b"429": "Asked a moment ago; try again in a few seconds."}
+print(messages.get(code[0] if code else b"", "Couldn't open the Network inbox."))
+PY_INBOX
+      done
+      (( found )) || echo "Linux Studio isn't running, so no websites are waiting."
+      exit 0 ;;
     --network-highlight)   # used by the "Connection refused" notice: open the list with one site pointed out
       exec /usr/bin/python3 "$NETWORK_DIR/sites_manager.py" --config "$NETWORK_CONFIG" --highlight "${2:?site needed}" ;;
     --settings) exec /usr/bin/python3 "$SHARE/settings/settings_window.py" "$SELF" ;;
@@ -381,13 +405,17 @@ od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$RUNTIME_TMP/link-token"; echo >>
 : > "$RUNTIME_TMP/resolv.conf"   # no name servers: names are looked up only by the proxy, outside
 
 # ---------- approved-websites proxy (stopped in cleanup) ----------
+# The network inbox's waiting count, for the editor's status bar (read-only inside the sandbox).
+mkdir -m 0700 "$RUNTIME_TMP/status"; echo 0 > "$RUNTIME_TMP/status/pending"
 mkdir -p "$CONFIG_DIR"; chmod 700 "$CONFIG_DIR"
 if [[ $MODE == toolchains-worker ]]; then   # official download sites only, no pop-ups
   /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" \
     --fixed-allowlist "$TOOLCHAINS_SRC/official-sites.json" --parent-pid $$ &
 else
   /usr/bin/python3 "$NETWORK_DIR/studio_proxy.py" --socket "$RUNTIME_TMP/proxy.sock" --config "$NETWORK_CONFIG" \
-    --prompt "$NETWORK_DIR/approval_prompt.py" --notice "$NETWORK_DIR/refused_notice.py" --launcher "$SELF" --parent-pid $$ &
+    --prompt "$NETWORK_DIR/approval_prompt.py" --notice "$NETWORK_DIR/refused_notice.py" --launcher "$SELF" \
+    --inbox "$NETWORK_DIR/network_inbox.py" --waiting-notice "$NETWORK_DIR/waiting_notice.py" --status-dir "$RUNTIME_TMP/status" \
+    --parent-pid $$ &
 fi
 PROXY_PID=$!
 for _ in $(seq 50); do [[ -S "$RUNTIME_TMP/proxy.sock" ]] && break; sleep 0.1; done
@@ -411,6 +439,7 @@ ARGS=(
   --ro-bind "$NETWORK_DIR/net_bridge.py" /run/linux-studio/net_bridge.py
   --ro-bind "$SHARE/launcher/xdg-open" /run/linux-studio/bin/xdg-open   # links open inside Linux Studio (link router)
   --ro-bind "$RUNTIME_TMP/link-token" /run/linux-studio/link-token
+  --ro-bind "$RUNTIME_TMP/status" /run/linux-studio/status   # network inbox count (read-only)
   --setenv GOTOOLCHAIN local --setenv CARGO_HOME /home/user/.cargo
   --setenv LS_VERIFY_EXTENSIONS "$([[ "$(get_setting EXTENSION_SIGNATURES check)" == off ]] && echo 0 || echo 1)"
   --setenv HOME /home/user --setenv USER user --setenv LOGNAME user --setenv SHELL /bin/bash

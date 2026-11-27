@@ -303,6 +303,131 @@ class Decisions(unittest.TestCase):
             self.store.set_site("https://evil.com", "allowed")
 
 
+class Inbox(unittest.TestCase):
+    """Network inbox (PM decision 2026-11-27): new sites wait instead of a pop-up each."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.tmp.name, "network.json")
+        self.store = Store(self.path)
+        self.status = os.path.join(self.tmp.name, "status")
+        os.mkdir(self.status)
+        self.p = studio_proxy.Policy(self.store, None, inbox_path="inbox", waiting_path="notice", status_dir=self.status)
+        self.p._has_display = lambda: False          # no windows in tests
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def count(self):
+        with open(os.path.join(self.status, "pending")) as f:
+            return int(f.read())
+
+    def test_new_site_waits_and_is_refused(self):
+        self.assertFalse(self.p.allowed("a.com"))
+        self.assertFalse(self.p.allowed("a.com"))                 # listed once
+        self.assertEqual([x["host"] for x in self.p.waiting_list()], ["a.com"])
+        self.assertEqual(self.count(), 1)
+        self.assertEqual(self.store.load()["sites"], {})          # nothing saved until answered
+
+    def test_answers(self):
+        for h in ("a.com", "b.com", "c.com", "d.com"):
+            self.p.allowed(h)
+        self.p.answer("once a.com")
+        self.assertTrue(self.p.allowed("a.com"))
+        self.p.answer("always b.com")
+        self.assertEqual(self.store.load()["sites"]["b.com"]["status"], "allowed")
+        self.p.answer("deny c.com")
+        self.assertEqual(self.store.load()["sites"]["c.com"]["status"], "blocked")
+        self.assertEqual(self.count(), 1)
+        self.p.answer("denyall")
+        self.assertNotIn("d.com", self.store.load()["sites"])        # Deny all: until restart, not saved (N4)
+        self.assertFalse(self.p.allowed("d.com"))
+        self.assertEqual(self.count(), 0)
+
+    def test_answers_only_for_waiting_sites(self):
+        self.p.answer("always evil.com")                         # never asked: ignored
+        self.p.answer("always ../etc")                           # not a site name: ignored
+        self.assertEqual(self.store.load()["sites"], {})
+
+    def test_cap(self):
+        for i in range(studio_proxy.INBOX_MAX + 10):
+            self.p.allowed(f"s{i}.example.com")
+        self.assertEqual(len(self.p.waiting_list()), studio_proxy.INBOX_MAX)
+
+    def test_expiry(self):
+        self.p.allowed("a.com")
+        wall, mono = self.p.waiting["a.com"]
+        self.p.waiting["a.com"] = (wall, mono - studio_proxy.INBOX_EXPIRY - 1)   # expiry uses the monotonic clock
+        self.p.expire()
+        self.assertEqual(self.p.waiting_list(), [])
+        self.assertEqual(self.count(), 0)
+        self.assertFalse(self.p.allowed("a.com"))               # asking again lists it again
+        self.assertEqual(len(self.p.waiting_list()), 1)
+
+    def test_open_requests_from_inside(self):
+        opened = []
+        self.p._spawn = lambda path, *a: (opened.append(a) if path == "inbox" else None) or None   # inbox only
+        self.assertEqual(self.p.open_inbox(), "empty")              # nothing waiting: refused (N1)
+        self.p.allowed("a.com")
+        self.p.open_inbox()
+        self.assertEqual(opened, [("--no-focus",)])                 # opened without keyboard focus (N1)
+        self.assertEqual(self.p.open_inbox(), "too-soon")          # rate-limited
+        self.p.open_inbox(from_user=True)                           # your own click: no limit, may take focus
+        self.assertEqual(opened[-1], ())
+
+    def test_open_inbox_is_not_raised_from_inside(self):
+        class Alive:
+            def poll(self):
+                return None
+        self.p.allowed("a.com")
+        self.p.inbox_proc = Alive()
+        self.p.inbox_proc.ls_queue = __import__("queue").Queue()
+        self.p.last_inbox_open = -100
+        self.assertEqual(self.p.open_inbox(), "already-open")
+        self.assertTrue(self.p.inbox_proc.ls_queue.empty())        # no "show": not brought forward (N1)
+
+    def test_deny_all_is_until_restart(self):
+        for h in ("a.com", "b.com"):
+            self.p.allowed(h)
+        self.p.answer("denyall")
+        self.assertEqual(self.store.load()["sites"], {})          # not saved (N4)
+        self.assertFalse(self.p.allowed("a.com"))
+        self.assertEqual(self.p.waiting_list(), [])                # and not listed again this session
+
+    def test_block_new_sites(self):
+        self.p.allowed("a.com")
+        self.p.answer("blocknew")
+        self.assertEqual(self.p.waiting_list(), [])
+        self.assertFalse(self.p.allowed("z.com"))
+        self.assertEqual(self.p.waiting_list(), [])                # new sites refused without being listed (N5)
+        json.dump({"network_enabled": True, "sites": {"ok.com": {"status": "allowed"}}}, open(self.path, "w"))
+        self.assertTrue(self.p.allowed("ok.com"))                  # approved sites keep working
+
+    def test_settled_elsewhere_leaves_the_inbox(self):
+        self.p.allowed("a.com")
+        json.dump({"network_enabled": True, "sites": {"a.com": {"status": "allowed"}}}, open(self.path, "w"))
+        self.assertTrue(self.p.allowed("a.com"))
+        self.assertEqual(self.p.waiting_list(), [])                # N9
+        self.assertEqual(self.count(), 0)
+
+    def test_no_refused_notice_over_the_inbox(self):
+        class Alive:
+            def poll(self):
+                return None
+        json.dump({"network_enabled": True, "sites": {"b.com": {"status": "blocked"}}}, open(self.path, "w"))
+        self.p.notice_path = "notice"
+        self.p._has_display = lambda: True
+        self.p.inbox_proc = Alive()
+        self.p._notify("b.com", "blocked")
+        self.assertEqual(self.p.notified, set())                   # N3
+
+    def test_blocked_and_allowed_sites_skip_the_inbox(self):
+        self.write = lambda d: json.dump(d, open(self.path, "w"))
+        self.write({"network_enabled": True, "sites": {"x.com": {"status": "allowed"}, "y.com": {"status": "blocked"}}})
+        self.assertTrue(self.p.allowed("x.com"))
+        self.assertFalse(self.p.allowed("y.com"))
+        self.assertEqual(self.p.waiting_list(), [])
+
+
 class FixedList(unittest.TestCase):
     def test_only_listed_sites(self):
         d = tempfile.mkdtemp()

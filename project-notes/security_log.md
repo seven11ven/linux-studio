@@ -6,6 +6,29 @@ Earlier reviews (Phases 2 to 6) are recorded in the changelogs under `project-ch
 
 ---
 
+## 2026-11-27: network inbox (dev8)
+- **Reviewed by:** jake-lockley (Claude Opus 5.5) · **Fixes by:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+- **Verdict:** code inside Linux Studio can't answer, see or fake the inbox. It could only influence *when* the inbox or a notice appears
+  ("approval fatigue": trying to get a reflex "Allow"). All findings fixed with PM approval.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| N1 | Medium | Code inside could bring the inbox forward at any time, and it took the keyboard (typed Tabs and Space could reach "Always allow") | "Open inbox" requests from inside are refused when nothing is waiting, rate-limited, never raise an inbox that's already open, and open it **without keyboard focus**. Your own click on the notice still gives focus (PM). |
+| N2 | Low | The 30 s refresh redrew the buttons unlocked during the 1 s lock | Buttons are created locked while a lock is active |
+| N3 | Low | The "Connection refused" notice could cover the inbox | No refused notice while the inbox is open |
+| N4 | Low | Deny all saved junk sites permanently and replayed notices | **Deny all refuses until restart and isn't saved** (PM) |
+| N5 | Low | 50-site flood; no stop switch; "Later" undone by repeat sites | **"Block new sites until restart"** in the inbox (PM). Only genuinely new sites undo "Later", and closing the notice counts as "Later". |
+| N6 | Low/Info | Stale snapshot possible | Snapshot and status file written under the UI lock |
+| N7 | Info | Blocking pipe writes could stall the proxy | Each window gets its own writer thread with a bounded queue |
+| N8 | Info | `--network-inbox` socket check gap under `/tmp` | Links refused, owner checked on the folder and the socket, peer uid checked (`SO_PEERCRED`) |
+| N9 | Info | Sites settled in Approved websites stayed in the inbox | They leave the inbox, and answers don't overrule them |
+| N10 | Info | Wall-clock expiry; docstring and messages | Monotonic expiry; corrected docs; `--network-inbox` reports "nothing waiting" and "too soon" |
+
+**Tests:** 37 proxy unit tests (new: empty and too-soon requests, no-focus opening, no re-raise, Deny all until restart, Block new, settled sites, no notice
+over the inbox). Real windows checked on a test display.
+
+---
+
 ## 2026-11-27: dev6 review (page full screen, --open-url without inner sandbox, terminal PATH)
 - **Reviewed by:** jake-lockley (Claude Opus 5.5) · **Fixes by:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager ("fix all")
 - **Verdict:** nothing reaches the host desktop. Page full screen stays inside its tab and can't trap the user. Fixed in dev7.

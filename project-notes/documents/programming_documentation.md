@@ -378,6 +378,39 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
     sandbox that sees only your display socket. It sets the window's class to `linux-studio-editor` (the menu entry's `StartupWMClass`) and its icon
     (`src/display/icons/ls-*.png`), then exits. It's cosmetic: if it fails, Linux Studio still works.
 
+## Network inbox (2026-11-27, approved mockup screen 8)
+New websites no longer get one approval pop-up each. They wait in an **inbox** instead, so the screen isn't flooded.
+- **Proxy** (`src/network/studio_proxy.py`, inbox mode is on when started with `--inbox`):
+  - A site that isn't allowed or blocked is added to a waiting list, and its connection is **refused while it waits**.
+  - Entries **expire after 10 minutes** (`INBOX_EXPIRY`), and at most 50 sites wait at once (`INBOX_MAX`).
+  - The proxy writes the **count** to `RUNTIME_TMP/status/pending`. The editor sees that folder read-only at `/run/linux-studio/status`.
+- **Small notice** (`src/network/waiting_notice.py`): "N websites are waiting for your approval".
+  - There is only ever one; the proxy updates its count in place.
+  - It never takes the keyboard, stays on top, and its buttons are locked for 1 second.
+  - **Open inbox** opens the inbox. **Later** hides it until a new site arrives.
+- **Inbox window** (`src/network/network_inbox.py`, host side; started by the proxy, which sends the list on stdin and reads answers on stdout):
+  - Each site has **Deny** (saved as blocked), **Allow once** (this session) and **Always allow** (saved). There is also **Deny all**.
+  - The buttons re-lock for 1 second whenever the list changes or the window comes forward.
+  - Answers are accepted only for sites actually waiting.
+- **Editor status bar** (built-in extension `src/editor/network-status/`, inside the sandbox):
+  - It shows "🌐 N waiting" next to the bell while something waits, read from the count file.
+  - Clicking it sends one fixed request (`LINUX-STUDIO-INBOX`) through the proxy bridge, and the proxy opens the inbox. The proxy limits this to once
+    every 3 seconds.
+  - It can't see which sites are waiting and can't answer anything.
+- **Also:** Settings > More > **Network inbox…**, and `linux-studio --network-inbox`, which asks each running Linux Studio's proxy to show its inbox.
+- **After the security review (N1–N10, PM-approved):**
+  - Requests to open the inbox that come through the proxy (the status bar, Settings, or any code inside) are refused when nothing is waiting, are
+    limited to one every 3 s, never bring an already-open inbox forward, and open it **without keyboard focus**: click it first. Your own
+    "Open inbox" click on the notice may take focus.
+  - **Deny all** refuses the listed sites until Linux Studio restarts, without saving them.
+  - **Block new sites until restart** is an emergency stop: new sites are refused without being listed; approved sites keep working.
+  - Other fixes: buttons stay locked through the 30 s refresh; no refused notice over the inbox; sites settled in Approved websites leave the inbox;
+    expiry uses a monotonic clock; each window has its own writer thread; `--network-inbox` checks the socket's owner and the peer's uid.
+- **Tests:** `tests/test_proxy.py` class `Inbox` covers waiting and refusing, answers, ignoring answers for sites not waiting, the cap, expiry, the
+  rate limit, and skipping known sites. The whole flow was also checked in the real editor: notice, then status bar, then inbox, then Always allow, after
+  which the count and the status item go away.
+- The old one-pop-up-per-site path (`approval_prompt.py`) is only used if the proxy is started without `--inbox`.
+
 ## dev5: CPU and memory, links inside Linux Studio, refusal notice, fonts (2026-11-26)
 
 ### CPU and memory limits

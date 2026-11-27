@@ -52,3 +52,28 @@
   - **Tested in the real editor:** the page stays full screen after clicking the side bar, with the menu bar still visible, and Esc on the page ends it.
 - Docs and security log updated.
 - **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 04:32 UTC: network inbox built (PM-approved mockup screen 8); dev7 skipped by the PM
+- **The PM skipped dev7.** Its download link was closed.
+- **Network inbox:**
+  - proxy waiting list (`studio_proxy.py`)
+  - `src/network/waiting_notice.py` (new) and `src/network/network_inbox.py` (new)
+  - the editor's built-in status-bar extension `src/editor/network-status/` (new; workflow step plus a local build copy)
+  - launcher: `--inbox`, `--waiting-notice`, `--status-dir`, the read-only status mount, and `--network-inbox`
+  - Settings: a **Network inbox…** button
+- **Tests:** 7 new proxy unit tests (32 in total). The full flow was checked in the real editor: the notice ("1 website is waiting"), the status bar
+  "🌐 1 waiting", clicking it opens the inbox, **Always allow** saves the site, and the count and status item go away.
+- **Backups:** `version-control/{network,launcher,settings}/2026-11-27_0426/`, plus the workflow backup.
+- A security review (jake-lockley) is in progress before the build.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager
+
+## Update 04:39 UTC: network inbox security review fixed (PM approved)
+- jake-lockley's review: N1 (Medium), N2–N5 (Low), N6–N10 (Info). All fixed as listed in `project-notes/security_log.md`.
+- **PM decisions:**
+  - fix as proposed, with an inbox opened from the editor not taking the keyboard
+  - **Deny all = until restart, not saved**
+  - **add "Block new sites until restart"**
+- **Files:** `studio_proxy.py` (inbox section rewritten), `network_inbox.py`, the `--network-inbox` launcher option, `tests/test_proxy.py` (37 tests),
+  docs, mockup note. Backups in `version-control/{network,launcher}/2026-11-27_0437/`.
+- **Checked on a test display:** an empty request is refused (404), the inbox opened from the editor has no keyboard focus, and the new button is shown.
+- **Performed By:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager

@@ -157,6 +157,14 @@ jobs:
           cp studio/src/editor/link-router/package.json studio/src/editor/link-router/extension.js "$DEST/"
           jq -e '.publisher == "linux-studio" and .name == "link-router"' "$DEST/package.json"
 
+      - name: Add Linux Studio network inbox status (status-bar count; opens the inbox)
+        run: |
+          DEST=VSCode-linux-x64/resources/app/extensions/linux-studio-network-status
+          [[ ! -e "$DEST" ]] || { echo "$DEST already exists; refusing to overwrite an unknown extension"; exit 1; }
+          mkdir -p "$DEST"
+          cp studio/src/editor/network-status/package.json studio/src/editor/network-status/extension.js "$DEST/"
+          jq -e '.publisher == "linux-studio" and .name == "network-status"' "$DEST/package.json"
+
       - name: Add Linux Studio's extension signature checker (open source, replaces Microsoft's closed vsce-sign)
         run: |
           DEST=VSCode-linux-x64/resources/app/node_modules/@vscode/vsce-sign
