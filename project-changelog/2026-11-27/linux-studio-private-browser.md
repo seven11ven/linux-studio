@@ -80,3 +80,25 @@ The PM also accepted the proposed terminal command `linux-studio --private-brows
   about: pages). Removing them would need our own rebranded engine build. No decision yet; the default is to accept them.
 - **Impacts:** the Settings window (`src/settings/settings_window.py`) will be reorganized into these pages during the build steps, with the same
   behaviour per section.
+
+## Update 14:40 UTC: step 2, locked policy file and extension switches (built and tested)
+- **Performed By:** Claude Opus 5.5 (Anthropic), via Claude Code · **Approved By:** Project Manager (step 2 with the toggle additions)
+- **New files** (no earlier versions exist, so there is nothing to back up):
+  - `scripts/fetch-browser-extensions.sh`: downloads NoScript 13.6.39, ClearURLs 1.28.0 and Bitwarden 2026.11.0 from addons.mozilla.org at pinned
+    versions, refuses any file whose SHA-256 differs, and writes `build-cache/browser-extensions/` (ignored by git). Like `fetch-editor.sh`, it is
+    run before a package build, so the package build itself needs no network. No runtime rebuild was needed.
+  - `src/browser/make_policies.py`: writes the locked `policies.json` from the Settings choices (remember, Safe Browsing, four extension switches),
+    run by the launcher outside the sandbox. It locks: telemetry, studies, Pocket, accounts, feedback, updates, first-run pages, about:config and
+    about:profiles off; the proxy to Linux Studio's `127.0.0.1:3128`; DNS over HTTPS off; tracking protection on; downloads to
+    `/project-folder/Downloads`; `linux-studio://` links to the link helper; extension signature checks on; and no other extensions.
+  - `tests/studio-browser-test.sh`: **15/15** (headless, no network).
+- **Findings:**
+  - Debian's browser reads the policy from its `distribution` folder. The sandbox mounts a folder holding only `policies.json` there, which replaces
+    Debian's extra search-engine entry (`debsearch.xml`).
+  - Debian's build doesn't force add-on signatures by itself (`MOZ_REQUIRE_SIGNING: false`), so the policy locks them on. Extensions in the
+    runtime's read-only system folder (only Debian's uBlock) load without a Mozilla signature, as Debian intends.
+  - Two preferences (`app.normandy.enabled`, `app.shield.optoutstudies.enabled`) aren't accepted by the policy engine. They were removed; the
+    DisableFirefoxStudies policy already covers them.
+  - The browser still contacts Mozilla's remote-settings service at start, which can't be switched off by policy. Raised with the PM.
+- **Open questions for the PM:** remote settings and certificate revocation checks; whether extensions keep their data between sessions in "forget"
+  mode (NoScript shows its welcome tab on every fresh install); the remaining Firefox names inside the browser.
