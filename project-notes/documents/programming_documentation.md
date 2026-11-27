@@ -419,6 +419,9 @@ The automated test `tests/x11-clipboard-test.sh` checks the bridge (9 checks).
 refused schemes, session key, rate limit, and the browser patch's rule).
 
 ### dev6 fixes (found in the PM's Mint test)
+- **PATH set-up after the dev6 review (dev7):** the additions live in `/etc/linux-studio/path.sh`, which is loaded by bashrc **and** by
+  `/etc/profile.d/linux-studio.sh`, so it also covers `bash -lc`. PATH is never left with an empty entry, which would mean "the current folder".
+  The launcher also clears its internal variables at start (D6-2/6/7).
 - **Editor terminal PATH:** the editor's terminal starts a **login** shell, and Debian's `/etc/profile` resets PATH, which dropped Linux Studio's `xdg-open`
   and the toolchains chosen with "Use this version". This had affected toolchains since dev3. Our shell settings
   (`src/runtime/overlay/etc/linux-studio/bashrc`, loaded after `/etc/profile`) put those folders back, without duplicates. The tests now also check a login
@@ -432,7 +435,10 @@ refused schemes, session key, rate limit, and the browser patch's rule).
   - **Fix (PM decision, option B):** page full screen stays **inside its tab**. Editor patch `src/editor/patches/browser-fullscreen.patch` (browserView.ts,
     main process):
     - the window is put back at once (unless the user made it full screen), so menus, side bars and tabs never disappear
-    - focus leaving the page, or its tab being hidden, ends the page's full screen; the exit runs in an isolated world, so the page can't block it
+    - focus leaving the page, or its tab being hidden, ends the page's full screen; the exit runs in the editor's isolated world
+      (`browserViewIsolatedWorldId`) **without** a user gesture, so the page can't block it or use it to go full screen again
+    - the user's own full-screen choice is followed from the window's own events; full screen that starts after the page lost focus ends at once
+    - (security review D6-1/3/4/8)
   - **Tested:** the page reaches full screen with the menu bar still visible, and clicking the side bar ends it. Applied locally for dev6; the workflow
     applies the patch and checks it.
 - **Self-test:** the window-labelling helper is skipped and its X errors are ignored (they were harmless "BadWindow" messages).

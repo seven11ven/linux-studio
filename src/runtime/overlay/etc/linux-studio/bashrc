@@ -12,12 +12,6 @@ export NPM_CONFIG_UPDATE_NOTIFIER=false
 export NPM_CONFIG_AUDIT=false
 export NPM_CONFIG_FUND=false
 
-# The editor's terminal starts a login shell, and Debian's /etc/profile resets PATH. Put back what Linux Studio adds:
-# its own xdg-open (links open in a tab inside Linux Studio) and the toolchains chosen with "Use this version".
-# Only folders that are missing are added, so nothing is listed twice.
-__ls_path_add() { case ":$PATH:" in *":$1:"*) ;; *) PATH="$1:$PATH" ;; esac; }
-for __ls_d in /toolchains/*/current/bin; do [ -d "$__ls_d" ] && __ls_path_add "$__ls_d"; done
-[ -d /run/linux-studio/bin ] && __ls_path_add /run/linux-studio/bin
-export PATH
-[ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
-unset __ls_d; unset -f __ls_path_add
+# PATH additions (Linux Studio's xdg-open and the chosen toolchains) live in /etc/linux-studio/path.sh, which login
+# shells also load through /etc/profile.d (security review D6-7: covers "bash -lc" too).
+. /etc/linux-studio/path.sh

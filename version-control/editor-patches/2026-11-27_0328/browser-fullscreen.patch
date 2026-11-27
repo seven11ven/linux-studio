@@ -1,0 +1,60 @@
+--- a/src/vs/platform/browserView/electron-main/browserView.ts
++++ b/src/vs/platform/browserView/electron-main/browserView.ts
+@@ -68,6 +68,8 @@
+ 	readonly dialogs = this._register(new BrowserViewDialogs());
+ 
+ 	private _ownerWindow: ICodeWindow;
++	/** Linux Studio: ends a page's full screen (set in setupEventListeners). */
++	private _lsExitPageFullscreen: (() => void) | undefined;
+ 	private _owner: IBrowserViewOwner;
+ 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
+ 	/** Its page's focus, while its window has focus: see {@link BrowserViewReportedFocus}. */
+@@ -540,7 +542,35 @@
+ 
+ 		webContents.on('blur', () => {
+ 			this._reportedFocus.setViewFocused(false);
+-		});
++			this._lsExitPageFullscreen?.();
++		});
++
++		// Linux Studio: a page may go full screen, but only inside its own tab. Electron would otherwise make the whole
++		// editor window full screen, hiding the menus and side bars (users got stuck). The window is put back at once
++		// (unless the user had made it full screen), and leaving the page (focus moves to the editor, or its tab is
++		// hidden) ends the page's full screen. The exit runs in an isolated world, so the page can't block it.
++		let lsPageFullscreen = false;
++		let lsWindowWasFullScreen = false;
++		webContents.on('focus', () => {
++			lsWindowWasFullScreen = !lsPageFullscreen && !!this._currentWindow?.win?.isFullScreen();
++		});
++		webContents.on('enter-html-full-screen', () => {
++			lsPageFullscreen = true;
++			const win = this._currentWindow?.win;
++			if (win && !lsWindowWasFullScreen && win.isFullScreen()) {
++				win.setFullScreen(false);
++			}
++		});
++		webContents.on('leave-html-full-screen', () => {
++			lsPageFullscreen = false;
++		});
++		this._lsExitPageFullscreen = () => {
++			if (!lsPageFullscreen || webContents.isDestroyed()) {
++				return;
++			}
++			webContents.executeJavaScriptInIsolatedWorld(999, [{ code: 'document.fullscreenElement ? document.exitFullscreen() : undefined' }], true)
++				.catch(() => { /* page gone */ });
++		};
+ 
+ 		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
+ 			this._onDidKeyCommand.fire(keyEvent);
+@@ -877,6 +907,11 @@
+ 	setVisible(visible: boolean): void {
+ 		if (this._wantsVisibility === visible) {
+ 			return;
++		}
++
++		// Linux Studio: a hidden tab never keeps a page in full screen.
++		if (!visible) {
++			this._lsExitPageFullscreen?.();
+ 		}
+ 
+ 		// If the view is focused, pass focus back to the window when hiding

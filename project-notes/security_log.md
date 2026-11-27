@@ -6,13 +6,27 @@ Earlier reviews (Phases 2 to 6) are recorded in the changelogs under `project-ch
 
 ---
 
-## 2026-11-26: dev6 notes (no separate review yet)
-- **Web page full screen:** the in-app browser always lets pages go full screen without asking. Before this fix, that made the whole editor window full screen,
-  which could hide the interface, trap the keyboard, or let a page imitate the editor ("fake screens").
-  - **Fix (PM, option B):** page full screen stays inside its tab, and ends when focus leaves the page or its tab is hidden.
-- **Short-lived editor command (`--open-url`)** gets `--no-sandbox` only where the editor itself already runs that way (`LS_EDITOR_NO_SANDBOX`). The process
-  only hands a link to the running editor and exits.
-- Both changes go to jake-lockley in the next review.
+## 2026-11-27: dev6 review (page full screen, --open-url without inner sandbox, terminal PATH)
+- **Reviewed by:** jake-lockley (Claude Opus 5.5) · **Fixes by:** Claude Opus 5.5 (Anthropic) · **Approved By:** Project Manager ("fix all")
+- **Verdict:** nothing reaches the host desktop. Page full screen stays inside its tab and can't trap the user. Fixed in dev7.
+
+| # | Severity | Finding | Fix |
+|---|---|---|---|
+| D6-1 | Low–Med | The exit command handed the page a "user click", so the page could go full screen again at once (inside its tab) or open pop-ups. | The exit no longer grants a user gesture (`false`). PM: no extra cooldown needed. |
+| D6-2 | Low | (Existed before dev6.) The launcher used `SELFTEST_DIR` and `BRIDGE_PID`/`XEPHYR_PID` from the environment, so on exit it could delete that folder or stop those processes. | Internal variables are cleared at start. Test: a decoy `SELFTEST_DIR` folder survives. |
+| D6-3 | Low | The user's own F11 state was only sampled when the page got focus, and could go stale. | The window's own enter/leave full-screen events are followed. The state just before a page-triggered switch counts as the user's choice. |
+| D6-4 | Low | Full screen that started after focus had left the page wasn't ended. | It's ended at once if the page isn't focused or its tab is hidden. |
+| D6-5 | Info | Three VS Code source files had been committed to the repo root by mistake (download into the wrong folder). | Removed (PM). They were Microsoft's public MIT files: no secrets. |
+| D6-6 | Info | With an empty PATH, a trailing `:` put the current folder on PATH. | PATH is joined with `${PATH:+:$PATH}` in the runtime settings and the launcher. Test added. |
+| D6-7 | Info | `bash -lc` (non-interactive login shells) lacked `xdg-open` and the chosen toolchains. | `/etc/linux-studio/path.sh` is loaded from `/etc/profile.d` as well as from bashrc (runtime rebuilt). Test added. |
+| D6-8 | Info | The patch used `999` instead of the editor's named constant. | It now uses `browserViewIsolatedWorldId`. |
+
+**Confirmed safe:**
+- `LS_EDITOR_NO_SANDBOX` gives code inside nothing it couldn't already do.
+- `/toolchains` is read-only inside the sandbox.
+- The screen-size value is checked twice.
+- World 999 is the editor's own trusted world.
+- The minified local build matches the patch.
 
 ---
 

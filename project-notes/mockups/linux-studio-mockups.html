@@ -100,7 +100,8 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
     <button class="tab" role="tab" id="tab-tc" aria-selected="false" data-s="tc">4 · Toolchains explorer</button>
     <button class="tab" role="tab" id="tab-gal" aria-selected="false" data-s="gallery">6 · Gallery (real screenshots)</button>
     <button class="tab" role="tab" id="tab-set" aria-selected="false" data-s="set">5 · Settings</button>
-    <button class="tab" role="tab" id="tab-fs" aria-selected="false" data-s="fs">7 · Web page full screen <span class="pill warn" style="margin-left:4px">new</span></button>
+    <button class="tab" role="tab" id="tab-fs" aria-selected="false" data-s="fs">7 · Web page full screen</button>
+    <button class="tab" role="tab" id="tab-inbox" aria-selected="false" data-s="inbox">8 · Network inbox <span class="pill warn" style="margin-left:4px">new</span></button>
   </nav>
 
   <!-- 1 FIRST RUN -->
@@ -212,6 +213,55 @@ project-folder/apples</div></div>
       <li><b>New: Esc works from anywhere</b> in Linux Studio, not only when the page has the keyboard.</li>
       <li><b>New: it can't stay on in the background.</b> Switching to another tab or clicking into the editor ends the page's full screen automatically (the trap you hit).</li>
       <li>Try it: click "Page asks to go full screen", then press Esc, click Exit, or click the <span class="mono">app.py</span> tab.</li></ul></aside>
+  </section>
+
+  <!-- 8 NETWORK INBOX (new, for approval) -->
+  <section class="stage" data-screen="inbox" hidden>
+    <div style="display:grid;gap:18px">
+      <div class="win">
+        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio</span></div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;padding:6px 14px;border-bottom:1px solid var(--line);font-size:.85rem;color:var(--muted)"><span>File</span><span>Edit</span><span>Selection</span><span>View</span><span>Go</span><span>Run</span><span>Terminal</span><span>Help</span></div>
+        <div style="display:flex;min-height:220px">
+          <div style="width:40px;flex:none;border-right:1px solid var(--line);background:var(--panel)"></div>
+          <div style="width:150px;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:10px;font-size:.85rem">EXPLORER<br><span class="mono" style="color:var(--muted)">project-folder</span></div>
+          <div style="flex:1;display:grid;place-items:center;color:var(--muted);font:600 2.4rem var(--display);opacity:.35">LS</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 10px;border-top:1px solid var(--line);background:var(--panel);font-size:.78rem;color:var(--muted)">
+          <span>Restricted Mode · 0 problems</span>
+          <span style="display:flex;gap:10px;align-items:center">
+            <button class="btn sm" id="ib-status" title="Websites waiting for your approval: click to open the Network inbox" style="padding:1px 8px">🌐 <b id="ib-status-n">3</b> waiting</button>
+            <span>🔔</span>
+          </span>
+        </div>
+      </div>
+      <div class="win" style="max-width:440px">
+        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Network requests</span></div>
+        <div class="body" style="gap:10px">
+          <div><span class="pill warn">Waiting for you</span></div>
+          <p style="margin:0" id="ib-count-text"></p>
+          <p class="hint" style="margin:0">Until you decide, these sites are refused. Requests you don't answer expire after 10 minutes.</p>
+          <div class="actions"><button class="btn" id="ib-later">Later</button><button class="btn primary" id="ib-open">Open inbox</button></div>
+        </div>
+      </div>
+      <div class="win" id="ib-win" hidden>
+        <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span><span class="t">Linux Studio · Network inbox</span></div>
+        <div class="body">
+          <div class="row" style="justify-content:space-between"><h2>Network inbox</h2><button class="btn sm danger" id="ib-denyall">Deny all</button></div>
+          <p class="hint" style="margin:0">Something inside Linux Studio (an extension or a terminal tool) asked to connect to these sites. Each will see your public IP address, but not your username, computer name or files.</p>
+          <div class="tablewrap"><table><thead><tr><th>Website</th><th>First asked</th><th>Expires in</th><th></th></tr></thead><tbody id="ib-rows"></tbody></table></div>
+          <p class="hint" id="ib-empty" hidden>Nothing is waiting.</p>
+        </div>
+      </div>
+    </div>
+    <aside class="notes"><h3>What happens</h3><ul>
+      <li><b>In the editor (top window):</b> a small <b>🌐 N waiting</b> item at the right end of the status bar, next to the notification bell. It appears only while something is waiting, and clicking it opens the Network inbox. It shows the count only: the editor runs inside the sandbox, so it can't answer requests. Linux Studio gives it the count through a read-only file, and "open the inbox" requests from it are rate-limited.</li>
+      <li><b>New (PM choice A):</b> new websites no longer get one pop-up each. A <b>single small notice</b> shows how many are waiting and updates its count in place. It never takes the keyboard.</li>
+      <li><b>Open inbox</b> lists every waiting site with <b>Deny</b>, <b>Allow once</b> and <b>Always allow</b>, plus <b>Deny all</b>. Buttons unlock after 1 second, like the pop-up.</li>
+      <li><b>While a site waits, its connections are refused.</b> The extension or tool usually retries and works once you allow it.</li>
+      <li><b>Requests expire after 10 minutes</b> (PM choice) if you don't answer, and count as denied until something asks again.</li>
+      <li>The inbox is a desktop window outside the sandbox, like Settings, so code inside can't answer it.</li>
+      <li>Also available from Settings > More > <b>Network inbox…</b> and <span class="mono">linux-studio --network-inbox</span>.</li></ul>
+      <button class="btn sm" id="ib-more">Simulate another request</button></aside>
   </section>
 
   <section data-screen="gallery" hidden>
@@ -375,6 +425,22 @@ $('#fs-exit').onclick=()=>{fsSet(false);toast('Full screen ended')};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#fs-bar').hidden){fsSet(false);toast('Esc: full screen ended')}});
 $$('.fs-tab').forEach(t=>t.onclick=()=>{const web=t.dataset.t==='web';if(!web&&!$('#fs-bar').hidden){fsSet(false);toast('Switching tabs ended full screen')}
   $('#fs-page').hidden=!web;$('#fs-code').hidden=web});
+// 8 network inbox
+let ibSites=[{d:'api.anthropic.com',t:'14:02',m:10},{d:'registry.npmjs.org',t:'14:03',m:9},{d:'telemetry.example-analytics.io',t:'14:03',m:9}];
+const ibExtra=['pypi.org','files.pythonhosted.org','objects.githubusercontent.com','api.github.com'];
+function drawIb(){const n=ibSites.length;$('#ib-status').hidden=n===0;$('#ib-status-n').textContent=n;$('#ib-count-text').innerHTML=n?`<b>${n} website${n>1?'s are':' is'}</b> waiting for your approval.`:'No websites are waiting.';
+  $('#ib-rows').innerHTML='';$('#ib-empty').hidden=n>0;
+  ibSites.forEach((x,i)=>{const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="mono"></td><td>${x.t}</td><td>${x.m} min</td><td style="text-align:right;white-space:nowrap"><button class="btn sm danger">Deny</button> <button class="btn sm">Allow once</button> <button class="btn sm primary">Always allow</button></td>`;
+    tr.cells[0].textContent=x.d;const [d,o,a]=tr.querySelectorAll('button');
+    const done=(w)=>{ibSites.splice(i,1);drawIb();toast(w+' '+x.d)};d.onclick=()=>done('Denied');o.onclick=()=>done('Allowed once:');a.onclick=()=>done('Always allowed:');
+    $('#ib-rows').append(tr)})}
+$('#ib-open').onclick=()=>{$('#ib-win').hidden=false;toast('Inbox opened')};
+$('#ib-status').onclick=()=>{$('#ib-win').hidden=false;toast('Opened from the status bar')};
+$('#ib-later').onclick=()=>toast('The notice hides; the inbox keeps the requests for up to 10 minutes');
+$('#ib-denyall').onclick=()=>{ibSites=[];drawIb();toast('Denied all waiting sites')};
+$('#ib-more').onclick=()=>{const d=ibExtra.shift();if(!d){toast('No more examples');return}ibSites.push({d,t:'14:05',m:10});drawIb();toast('The notice count went up instead of a new pop-up')};
+drawIb();
 // 2b refused notice
 let rfKind='blocked';
 function drawRf(){const host='api.anthropic.com';

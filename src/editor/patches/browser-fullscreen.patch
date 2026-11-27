@@ -9,44 +9,62 @@
  	private _owner: IBrowserViewOwner;
  	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
  	/** Its page's focus, while its window has focus: see {@link BrowserViewReportedFocus}. */
-@@ -540,7 +542,35 @@
+@@ -540,6 +542,54 @@
  
  		webContents.on('blur', () => {
  			this._reportedFocus.setViewFocused(false);
--		});
 +			this._lsExitPageFullscreen?.();
 +		});
 +
 +		// Linux Studio: a page may go full screen, but only inside its own tab. Electron would otherwise make the whole
 +		// editor window full screen, hiding the menus and side bars (users got stuck). The window is put back at once
-+		// (unless the user had made it full screen), and leaving the page (focus moves to the editor, or its tab is
-+		// hidden) ends the page's full screen. The exit runs in an isolated world, so the page can't block it.
++		// unless the user had made it full screen themselves, and leaving the page (focus moves to the editor, or its tab
++		// is hidden) ends the page's full screen. The exit runs in the editor's isolated world without a user gesture,
++		// so the page can neither block it nor use it to go full screen again.
 +		let lsPageFullscreen = false;
-+		let lsWindowWasFullScreen = false;
-+		webContents.on('focus', () => {
-+			lsWindowWasFullScreen = !lsPageFullscreen && !!this._currentWindow?.win?.isFullScreen();
-+		});
-+		webContents.on('enter-html-full-screen', () => {
-+			lsPageFullscreen = true;
-+			const win = this._currentWindow?.win;
-+			if (win && !lsWindowWasFullScreen && win.isFullScreen()) {
-+				win.setFullScreen(false);
-+			}
-+		});
-+		webContents.on('leave-html-full-screen', () => {
-+			lsPageFullscreen = false;
-+		});
++		// The window's own full-screen state, followed from its events: the state just before the latest change, and when
++		// that change happened. A page's request switches the window just before 'enter-html-full-screen' arrives.
++		const lsWin = this._ownerWindow.win;
++		let lsWinFullScreen = !!lsWin?.isFullScreen();
++		let lsWinFullScreenBefore = lsWinFullScreen;
++		let lsWinChangedAt = 0;
++		if (lsWin) {
++			const onWinEnter = () => { lsWinFullScreenBefore = lsWinFullScreen; lsWinFullScreen = true; lsWinChangedAt = Date.now(); };
++			const onWinLeave = () => { lsWinFullScreenBefore = lsWinFullScreen; lsWinFullScreen = false; lsWinChangedAt = Date.now(); };
++			lsWin.on('enter-full-screen', onWinEnter);
++			lsWin.on('leave-full-screen', onWinLeave);
++			this._register(toDisposable(() => {
++				if (!lsWin.isDestroyed()) {
++					lsWin.off('enter-full-screen', onWinEnter);
++					lsWin.off('leave-full-screen', onWinLeave);
++				}
++			}));
++		}
 +		this._lsExitPageFullscreen = () => {
 +			if (!lsPageFullscreen || webContents.isDestroyed()) {
 +				return;
 +			}
-+			webContents.executeJavaScriptInIsolatedWorld(999, [{ code: 'document.fullscreenElement ? document.exitFullscreen() : undefined' }], true)
++			webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: 'document.fullscreenElement ? document.exitFullscreen() : undefined' }], false)
 +				.catch(() => { /* page gone */ });
 +		};
++		webContents.on('enter-html-full-screen', () => {
++			lsPageFullscreen = true;
++			const win = this._currentWindow?.win;
++			const userWantsFullScreen = Date.now() - lsWinChangedAt < 500 ? lsWinFullScreenBefore : lsWinFullScreen;
++			if (win && !userWantsFullScreen && win.isFullScreen()) {
++				win.setFullScreen(false);
++			}
++			// Started after the user had already left the page (or while its tab is hidden): end it straight away.
++			if (!webContents.isFocused() || !this._wantsVisibility) {
++				this._lsExitPageFullscreen?.();
++			}
++		});
++		webContents.on('leave-html-full-screen', () => {
++			lsPageFullscreen = false;
+ 		});
  
  		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
- 			this._onDidKeyCommand.fire(keyEvent);
-@@ -877,6 +907,11 @@
+@@ -877,6 +927,11 @@
  	setVisible(visible: boolean): void {
  		if (this._wantsVisibility === visible) {
  			return;

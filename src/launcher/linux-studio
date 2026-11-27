@@ -29,6 +29,9 @@
 set -euo pipefail
 
 PROG="linux-studio"
+# Internal state, never taken from the environment (security review D6-2: cleanup() deletes SELFTEST_DIR and stops
+# the *_PID processes, so a value inherited from outside must never count).
+SELFTEST_DIR=""; BRIDGE_PID=""; XEPHYR_PID=""; PROXY_PID=""; RUNTIME_TMP=""
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/linux-studio"
 CONFIG_FILE="$CONFIG_DIR/config"
 STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/linux-studio"
@@ -541,9 +544,9 @@ START=(/bin/bash -c '/usr/bin/python3 /run/linux-studio/net_bridge.py || { echo 
   if [ "${LS_PRIVATE_X11:-}" = 1 ] && [ -x /usr/bin/matchbox-window-manager ]; then
     /usr/bin/matchbox-window-manager -use_titlebar no >/dev/null 2>&1 &   # keeps the editor filling the window
   fi
-  for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
+  for d in /toolchains/*/current/bin; do [ -d "$d" ] && PATH="$d${PATH:+:$PATH}"; done
   [ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
-  PATH="/run/linux-studio/bin:$PATH"   # Linux Studio'"'"'s xdg-open first: links open in a tab inside Linux Studio
+  PATH="/run/linux-studio/bin${PATH:+:$PATH}"   # Linux Studio'"'"'s xdg-open first: links open in a tab inside Linux Studio
   export PATH
   exec "$@"' linux-studio)
 

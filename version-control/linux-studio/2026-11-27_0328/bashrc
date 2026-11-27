@@ -1,0 +1,23 @@
+# Linux Studio: settings for every interactive bash shell inside the sandbox.
+# Sourced from /etc/bash.bashrc (added by scripts/build-runtime.sh).
+
+# Prompt shows the path WITHOUT the leading "/", so the project folder reads
+# "project-folder/apples $" instead of "/project-folder/apples $".
+__ls_path() { local p="${PWD#/}"; printf '%s' "${p:-/}"; }
+PS1='$(__ls_path) \$ '
+
+# Stop language tools from contacting the internet on their own.
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export NPM_CONFIG_UPDATE_NOTIFIER=false
+export NPM_CONFIG_AUDIT=false
+export NPM_CONFIG_FUND=false
+
+# The editor's terminal starts a login shell, and Debian's /etc/profile resets PATH. Put back what Linux Studio adds:
+# its own xdg-open (links open in a tab inside Linux Studio) and the toolchains chosen with "Use this version".
+# Only folders that are missing are added, so nothing is listed twice.
+__ls_path_add() { case ":$PATH:" in *":$1:"*) ;; *) PATH="$1:$PATH" ;; esac; }
+for __ls_d in /toolchains/*/current/bin; do [ -d "$__ls_d" ] && __ls_path_add "$__ls_d"; done
+[ -d /run/linux-studio/bin ] && __ls_path_add /run/linux-studio/bin
+export PATH
+[ -d /toolchains/java/current ] && export JAVA_HOME=/toolchains/java/current
+unset __ls_d; unset -f __ls_path_add

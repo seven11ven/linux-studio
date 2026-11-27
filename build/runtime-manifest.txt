@@ -1,4 +1,4 @@
-# Linux Studio runtime: Debian trixie, built 2026-11-26T21:21Z
+# Linux Studio runtime: Debian trixie, built 2026-11-27T03:31Z
 adwaita-icon-theme 48.1-1
 apt 3.0.4
 at-spi2-common 2.56.2-1+deb13u2

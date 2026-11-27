@@ -35,6 +35,8 @@ check "No direct internet (bypassing proxy)"   'curl --noproxy "*" -sS -m 5 http
 check "Starts in /project-folder"            'pwd'                                   '^/project-folder$'
 check "Prompt hides leading slash"           'cd /project-folder && mkdir -p apples && cd apples && . /etc/linux-studio/bashrc && __ls_path' '^project-folder/apples$'
 check "Terminal (login shell) finds Linux Studio's xdg-open" 'bash -lic "command -v xdg-open" 2>/dev/null' '^/run/linux-studio/bin/xdg-open$'
+check "Non-interactive login shell (bash -lc) finds it too" 'bash -lc "command -v xdg-open" 2>/dev/null' '^/run/linux-studio/bin/xdg-open$'
+check "Empty PATH never gains an empty entry (current folder)" 'env -i /bin/bash --noprofile --norc -c ". /etc/linux-studio/path.sh; echo \"[\$PATH]\""' '^\[[^]:][^]]*[^]:]\]$'
 check "No GPU device without --gpu"          'ls /dev/dri 2>&1 || true'              'No such file'
 check "Editor folder empty in shell mode"    'ls -A /app | wc -l'                    '^0$'
 check "Capabilities dropped"                 'grep CapEff /proc/self/status'         '0000000000000000'
@@ -59,6 +61,11 @@ bad=0; for p in / "$HOME" /etc /usr/share "$XDG_DATA_HOME/linux-studio/home"; do
   "$LAUNCHER" --validate-project-folder "$p" >/dev/null 2>&1 && { echo "      accepted unsafe folder: $p"; bad=1; }
 done
 if (( bad == 0 )); then echo "PASS  Unsafe project folders are refused"; ((PASS++)); else echo "FAIL  Unsafe project folders are refused"; ((FAIL++)); fi
+
+# The launcher never trusts its internal names from the environment (security review D6-2).
+decoy="$T/decoy"; mkdir -p "$decoy"; echo keep > "$decoy/file"
+SELFTEST_DIR="$decoy" BRIDGE_PID=1 XEPHYR_PID=1 "$LAUNCHER" --runtime-dir "$RUNTIME" --shell -c true >/dev/null 2>&1
+if [[ -f "$decoy/file" ]]; then echo "PASS  Launcher ignores SELFTEST_DIR/BRIDGE_PID/XEPHYR_PID from the environment"; ((PASS++)); else echo "FAIL  Launcher deleted a folder named in SELFTEST_DIR"; ((FAIL++)); fi
 
 echo; echo "$PASS passed, $FAIL failed"
 (( FAIL == 0 ))
