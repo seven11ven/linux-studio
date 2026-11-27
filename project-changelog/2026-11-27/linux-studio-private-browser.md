@@ -117,3 +117,15 @@ The PM also accepted the proposed terminal command `linux-studio --private-brows
   - **Forget mode: a fully clean profile on every start** (NoScript's welcome tab and a Bitwarden login each time are accepted).
 - **Changes:** `src/browser/make_policies.py` adds the OCSP preferences (previous version in `version-control/browser/2026-11-27_1405/`);
   `tests/studio-browser-test.sh` checks them; **15/15** pass. `project-notes/plan.md` gains a "Studio Browser" section with all decisions and steps.
+
+## Update 14:20 UTC: step 3 design approved; paused (PM)
+- **Performed By:** Claude Opus 5.5 (Anthropic), via Claude Code · **Approved By:** Project Manager ("Yes, but we'll have to pause here")
+- **Research (scratchpad only, nothing in the repo changed by it):** a second `firefox-esr --new-tab URL` reaches a running browser inside its
+  sandbox only when the sandbox has its own private D-Bus (`dbus-run-session`, already in the runtime) and a real display. Without D-Bus it reports
+  "already running, but is not responding"; headless mode never hands off. Tested on a temporary Xvfb, which was stopped afterwards.
+- **Step 3 design approved** (recorded in `project-notes/plan.md`): the browser gets its own sandbox (it can't share the editor's, because the PM
+  limited it to `Downloads`, and inner sandboxes aren't available on Ubuntu/Mint); its own window; the editor session's proxy when one is running;
+  link hand-off; `linux-studio://` sign-ins routed back to the editor's link router. **Behaviour change accepted by the PM:** links whose sign-in
+  return address is `localhost`/`127.0.0.1` open in the Linux Studio tab, because the browser can't reach the editor's localhost.
+- **Paused at the PM's request.** New handoff: `project-notes/handoff/2026-11-27-evening-handoff.md` (the morning handoff now points to it).
+  Nothing is running.

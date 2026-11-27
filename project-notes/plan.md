@@ -100,9 +100,30 @@ Approved mockup: screen 9, revision 6 (`project-notes/mockups/linux-studio-mocku
 1. ✅ Runtime: `firefox-esr`, `webext-ublock-origin-firefox`, Debian security archive (`scripts/build-runtime.sh`).
 2. ✅ Locked policy file (`src/browser/make_policies.py`), pinned extensions (`scripts/fetch-browser-extensions.sh`), tests
    (`tests/studio-browser-test.sh`).
-3. Launching: its own sandbox from the same runtime, the proxy and Network inbox, the fake identity, only `Downloads`. Its own private display
-   window "Linux Studio · Studio Browser". Started on demand (a link or `--studio-browser`) through a rate-limited request channel. Profile in
-   memory (forget) or `~/.local/share/linux-studio/browser/` (remember).
+3. Launching (**design PM-approved 2026-11-27, not started**):
+   - **Own sandbox** (`linux-studio --studio-browser [URL]`) from the same runtime: fake identity, no network devices (only the proxy bridge),
+     sees only `project-folder/Downloads` (created if missing) plus read-only extensions (`/run/linux-studio/browser-extensions`) and a
+     read-only `distribution/` folder holding `policies.json` (mounted at `/usr/lib/firefox-esr/distribution`). Same CPU/memory limits as the
+     editor. Needs `--uid 1000 --gid 1000` with the launcher's fake passwd/group.
+   - **Private D-Bus inside the browser sandbox** (`dbus-run-session`, in the runtime). Tested: without it, a second
+     `firefox-esr --new-tab URL` says "already running, but is not responding"; with it, the link is handed to the running browser
+     (exit 0 at once, tab opened). Headless mode never hands off, so test on Xvfb.
+   - **Window:** X11: a second private Xephyr display titled "Linux Studio · Studio Browser" (reuse `setup_x11` logic). Wayland: the Wayland
+     socket, like the editor.
+   - **Proxy:** if a Linux Studio editor session is running, use its proxy (one Network inbox, one "🌐 N waiting" count). Otherwise start its own
+     proxy with the same `network.json`.
+   - **Profile:** tmpfs (Remember off: fully clean each start) or `~/.local/share/linux-studio/browser/` (Remember on).
+   - **Links in:** when Web Links = Studio Browser, the in-sandbox `xdg-open` sends "open in browser" over the proxy socket (a new request beside
+     `LINUX-STUDIO-INBOX open`), http/https only, 3 per 10 s. The host starts the browser or hands the link to the open one.
+   - **Sign-ins back:** `linux-studio://` links from the browser go browser sandbox → host → the editor session → the existing token-checked link
+     router (a reverse channel over the editor's existing proxy connection, so no new writable mount).
+   - **Localhost sign-ins (PM-approved rule):** the browser has its own network, so it can't reach the editor's `localhost`. Links whose sign-in
+     return address is local (`redirect_uri=http://localhost…` or `127.0.0.1`) open in the Linux Studio tab instead; everything else follows
+     Web Links.
+   - **Files:** `src/launcher/linux-studio`, `src/launcher/xdg-open`, `src/network/studio_proxy.py`, new helpers in `src/browser/`. Back up each
+     changed file in `version-control/` first.
+   - **Tests:** sandbox view (only Downloads, no home, proxy only), window, hand-off, localhost rule, profile gone after close, rate limit; then
+     all suites.
 4. **Rebranding (PM 2026-11-27):** when the runtime is built, replace the engine's central branding (name "Studio Browser", 648 text uses) and
    logos with Linux Studio's. Find and fix the 18 hard-coded "Firefox" lines and the fox mascot pictures, or hide them by policy. Also hide the
    "Make default" card and the add-on site's search box. Screenshots of the rebranded pages go to the PM for approval. Re-check after every
